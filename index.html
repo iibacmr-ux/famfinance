@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionnaire Financier Familial</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style_updates.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Drive API -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <!-- Configuration Google Drive -->
+    <script>
+      // Détecter si on est en local ou sur un serveur
+      if (window.location.protocol === 'file:') {
+        // Mode fichier local - utiliser config.js
+        document.write('<script src="config.js"><\/script>');
+      } else {
+        // Mode serveur - utiliser config-local.js
+        document.write('<script src="config-local.js"><\/script>');
+      }
+    </script>
+</head>
+<body>
+    <!-- Header avec filtres globaux -->
+    <header class="main-header">
+        <div class="header-content">
+            <button class="sidebar-toggle" aria-label="Menu" id="sidebarToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h1 class="app-title">Gestionnaire Financier</h1>
+            <div class="global-filters">
+                <!-- Quick Date Filters -->
+                <div class="date-filter-group">
+                    <select id="quickDateFilter" class="form-control filter-select">
+                        <option value="">Toutes les périodes</option>
+                        <option value="this-month">Ce mois</option>
+                        <option value="this-quarter">Ce trimestre</option>
+                        <option value="this-year">Cette année</option>
+                        <option value="last-month">Mois dernier</option>
+                        <option value="last-quarter">Trimestre dernier</option>
+                        <option value="last-year">Année dernière</option>
+                        <option value="custom">Période personnalisée</option>
+                    </select>
+                    
+                    <!-- Custom Date Range (hidden by default) -->
+                    <div id="customDateRange" class="custom-date-range" style="display: none;">
+                        <input type="date" id="startDate" class="form-control" placeholder="Début">
+                        <span class="date-separator">à</span>
+                        <input type="date" id="endDate" class="form-control" placeholder="Fin">
+                        <button id="applyCustomRange" class="btn btn--sm btn--primary">Appliquer</button>
+                    </div>
+                </div>
+                
+                <button id="darkModeToggle" class="btn btn--secondary" title="Basculer le mode sombre">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <nav class="sidebar-nav">
+            <ul>
+                <li>
+                    <a href="#dashboard" data-section="dashboard" class="nav-link active">
+                        <i class="fas fa-tachometer-alt"></i> 
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#projects" data-section="projects" class="nav-link">
+                        <i class="fas fa-project-diagram"></i> 
+                        <span>Projets & Tâches</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#sources" data-section="sources" class="nav-link">
+                        <i class="fas fa-coins"></i> 
+                        <span>Sources & Allocations</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#analyses" data-section="analyses" class="nav-link">
+                        <i class="fas fa-chart-line"></i> 
+                        <span>Analyses Expertes</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#comparisons" data-section="comparisons" class="nav-link">
+                        <i class="fas fa-balance-scale"></i> 
+                        <span>Comparaisons</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#settings" data-section="settings" class="nav-link">
+                        <i class="fas fa-cog"></i> 
+                        <span>Paramètres</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+        <!-- Dashboard KPI Section -->
+        <section id="dashboard" class="content-section active">
+            <div class="section-header">
+                <h2>Dashboard KPI</h2>
+                <div class="section-actions">
+                    <button class="btn btn--primary add-project-btn">
+                        <i class="fas fa-plus"></i> Nouveau Projet
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards Grid -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-project-diagram"></i></div>
+                    <div class="kpi-content">
+                        <h3>Tâches Actives <button class="kpi-info-btn" data-formula="Nombre de tâches avec statut 'En cours' ou 'Planifié'"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="activeTasks">4</div>
+                        <div class="kpi-delta positive">+1 vs mois précédent</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon primary"><i class="fas fa-wallet"></i></div>
+                    <div class="kpi-content">
+                        <h3>Budget Total <button class="kpi-info-btn" data-formula="Somme de tous les budgets des projets actifs"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="totalBudget">16 722 249 FCFA</div>
+                        <div class="kpi-delta positive">+5.2%</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon warning"><i class="fas fa-credit-card"></i></div>
+                    <div class="kpi-content">
+                        <h3>Montants Utilisés <button class="kpi-info-btn" data-formula="Somme des montants alloués à tous les projets"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="totalUsed">6 322 249 FCFA</div>
+                        <div class="kpi-delta">37.8% du budget</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-chart-bar"></i></div>
+                    <div class="kpi-content">
+                        <h3>Progression Moyenne <button class="kpi-info-btn" data-formula="Moyenne pondérée des progressions par budget"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="avgProgress">51.8%</div>
+                        <div class="kpi-delta positive">+2.1%</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-arrow-trend-up"></i></div>
+                    <div class="kpi-content">
+                        <h3>Cash Flow Net <button class="kpi-info-btn" data-formula="Revenus - Dépenses courantes - Allocations"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="netCashFlow">118 917 FCFA</div>
+                        <div class="kpi-delta positive">Positif</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="kpi-content">
+                        <h3>Tâches en Retard <button class="kpi-info-btn" data-formula="Nombre de tâches avec date fin < aujourd'hui et statut != Terminé"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="overdueTasks">0</div>
+                        <div class="kpi-delta positive">Excellent</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon primary"><i class="fas fa-landmark"></i></div>
+                    <div class="kpi-content">
+                        <h3>Patrimoine Net <button class="kpi-info-btn" data-formula="Actifs totaux - Passifs totaux"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="netWorth">37 500 000 FCFA</div>
+                        <div class="kpi-delta positive">+8.3%</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-piggy-bank"></i></div>
+                    <div class="kpi-content">
+                        <h3>Taux d'Épargne <button class="kpi-info-btn" data-formula="(Revenus - Dépenses) / Revenus * 100"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="savingsRate">22.5%</div>
+                        <div class="kpi-delta positive">Objectif atteint</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon warning"><i class="fas fa-chart-pie"></i></div>
+                    <div class="kpi-content">
+                        <h3>Ratio Endettement <button class="kpi-info-btn" data-formula="Total dettes / Revenus mensuels * 100"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="debtRatio">26.25%</div>
+                        <div class="kpi-delta">Acceptable</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon success"><i class="fas fa-percentage"></i></div>
+                    <div class="kpi-content">
+                        <h3>ROI Moyen <button class="kpi-info-btn" data-formula="Moyenne pondérée des ROI par montant investi"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="avgRoi">11.75%</div>
+                        <div class="kpi-delta positive">Excellence</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon primary"><i class="fas fa-dice"></i></div>
+                    <div class="kpi-content">
+                        <h3>Probabilité Moyenne <button class="kpi-info-btn" data-formula="Moyenne des probabilités de succès pondérée par budget"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="avgProbability">82.5%</div>
+                        <div class="kpi-delta positive">Très bon</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon warning"><i class="fas fa-tachometer-alt"></i></div>
+                    <div class="kpi-content">
+                        <h3>Vélocité Projets <button class="kpi-info-btn" data-formula="Moyenne des progressions / Durée écoulée"><i class="fas fa-info-circle"></i></button></h3>
+                        <div class="kpi-value" id="projectVelocity">0.8</div>
+                        <div class="kpi-delta">À améliorer</div>
+                    </div>
+                </div>
+            </div>
+
+                <!-- Charts Section -->
+            <div class="charts-section">
+                <div class="chart-container" style="height: 400px; position: relative;">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recommendations Section -->
+            <div class="recommendations-section">
+                <h3><i class="fas fa-lightbulb"></i> Alertes & Recommandations AI</h3>
+                <div class="recommendations-list" id="recommendationsList">
+                    <!-- Recommendations will be populated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Projects & Tasks Section -->
+        <section id="projects" class="content-section">
+            <div class="section-header">
+                <h2>Projets & Tâches</h2>
+                <div class="section-actions">
+                    <button class="btn btn--primary" id="newProjectBtn">
+                        <i class="fas fa-plus"></i> Nouveau Projet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search and Filters -->
+            <div class="projects-filters">
+                <input type="text" id="projectSearch" class="form-control search-input" placeholder="Rechercher projets...">
+                <select id="categoryFilter" class="form-control filter-select">
+                    <option value="">Toutes catégories</option>
+                    <option value="PATRIMOINE IMMOBILIER">Patrimoine Immobilier</option>
+                    <option value="LOCATION & REVENUS">Location & Revenus</option>
+                    <option value="ÉDUCATION & FORMATION">Éducation & Formation</option>
+                    <option value="VOYAGES & LOISIRS">Voyages & Loisirs</option>
+                </select>
+                <select id="statusFilter" class="form-control filter-select">
+                    <option value="">Tous statuts</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminé">Terminé</option>
+                    <option value="Planifié">Planifié</option>
+                </select>
+            </div>
+
+            <!-- Counters Display -->
+            <div id="projectsCounters">
+                <!-- Counters will be populated by JavaScript -->
+            </div>
+
+            <div class="projects-container" id="projectsContainer">
+                <!-- Projects will be populated by JavaScript -->
+            </div>
+        </section>
+
+        <!-- Sources & Allocations Section -->
+        <section id="sources" class="content-section">
+            <div class="section-header">
+                <h2>Sources & Allocations</h2>
+                <div class="section-actions">
+                    <button class="btn btn--primary" id="newSourceBtn">
+                        <i class="fas fa-plus"></i> Nouvelle Source
+                    </button>
+                    <button class="btn btn--primary" id="newAllocationBtn">
+                        <i class="fas fa-exchange-alt"></i> Allouer
+                    </button>
+                </div>
+            </div>
+
+            <div class="summary-cards">
+                <div class="card summary-card">
+                    <h4>Total Disponible</h4>
+                    <p id="totalAvailable">0 FCFA</p>
+                </div>
+                <div class="card summary-card">
+                    <h4>Total Alloué</h4>
+                    <p id="totalAllocated">0 FCFA</p>
+                </div>
+                <div class="card summary-card">
+                    <h4>Total Restant</h4>
+                    <p id="totalRemaining">0 FCFA</p>
+                </div>
+                <div class="card summary-card">
+                    <h4>Taux d'Allocation</h4>
+                    <p id="allocationRate">0%</p>
+                </div>
+                <div class="card summary-card" id="availableThisMonthCard" style="display: none;">
+                    <h4>Disponible ce Mois</h4>
+                    <p id="availableThisMonth">0 FCFA</p>
+                </div>
+                <div class="card summary-card" id="allocatedThisMonthCard" style="display: none;">
+                    <h4>Alloué ce Mois</h4>
+                    <p id="allocatedThisMonth">0 FCFA</p>
+                </div>
+                <div class="card summary-card" id="remainingThisMonthCard" style="display: none;">
+                    <h4>Restant ce Mois</h4>
+                    <p id="remainingThisMonth">0 FCFA</p>
+                </div>
+                <div class="card summary-card" id="availablePreviousMonthsCard" style="display: none;">
+                    <h4>Reliquats Précédents</h4>
+                    <p id="availablePreviousMonths">0 FCFA</p>
+                </div>
+                <div class="card summary-card" id="remainingPreviousMonthsCard" style="display: none;">
+                    <h4>Reliquats Restants</h4>
+                    <p id="remainingPreviousMonths">0 FCFA</p>
+                </div>
+                <div class="card summary-card">
+                    <h4>Répartition des Sources</h4>
+                    <div class="chart-container" style="height: 220px; position: relative;">
+                        <canvas id="sourcesChartSummary"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sources-grid">
+                <div class="sources-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Type</th>
+                                <th>Disponible</th>
+                                <th>Alloué</th>
+                                <th>Restant</th>
+                                <th>Taux</th>
+                                <th>Responsable</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sourcesTableBody">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!--    <div class="allocation-chart-container" style="height: 300px; position: relative;">
+                         <canvas id="sourcesChart"></canvas>
+                        </div> -->
+            </div>
+
+            <div class="allocations-section">
+                <h3>Prévu vs Réel</h3>
+                <div class="comparison-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Mois</th>
+                                <th>Source</th>
+                                <th>Tâche/Projet</th>
+                                <th>Prévu</th>
+                                <th>Réel</th>
+                                <th>Écart</th>
+                                <th>Responsable</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allocationsTableBody">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Expert Analyses Section -->
+        <section id="analyses" class="content-section">
+            <div class="section-header">
+                <h2>Analyses Expertes</h2>
+            </div>
+
+            <div class="analyses-tabs">
+                <button class="tab-btn active" data-tab="kiyosaki">KIYOSAKI</button>
+                <button class="tab-btn" data-tab="buffett">BUFFETT</button>
+                <button class="tab-btn" data-tab="ramsey">RAMSEY</button>
+                <button class="tab-btn" data-tab="canvas">FAMILY CANVAS</button>
+            </div>
+
+            <div class="tab-content active" id="kiyosaki">
+                <h3><i class="fas fa-chart-pie"></i> Quadrant Kiyosaki (E-S-B-I) <button class="kpi-info-btn" data-formula="Répartition des revenus par quadrant selon Robert Kiyosaki"><i class="fas fa-info-circle"></i></button></h3>
+                <div class="quadrant-grid">
+                    <div class="quadrant-item employee">
+                        <h4>Employee (E)</h4>
+                        <div class="quadrant-value">800 000 FCFA</div>
+                        <p>Salaire William</p>
+                    </div>
+                    <div class="quadrant-item self-employed">
+                        <h4>Self-Employed (S)</h4>
+                        <div class="quadrant-value">232 000 FCFA</div>
+                        <p>Revenus IIBA</p>
+                    </div>
+                    <div class="quadrant-item business">
+                        <h4>Business (B)</h4>
+                        <div class="quadrant-value">0 FCFA</div>
+                        <p>En développement</p>
+                    </div>
+                    <div class="quadrant-item investor">
+                        <h4>Investor (I)</h4>
+                        <div class="quadrant-value">450 000 FCFA</div>
+                        <p>Revenus passifs immobiliers</p>
+                    </div>
+                </div>
+                <div class="analysis-recommendation">
+                    <strong>Recommandation IA:</strong> Développer le quadrant "I" (Investisseur) pour augmenter les revenus passifs. Objectif : 40% des revenus totaux d'ici 2026.
+                </div>
+            </div>
+
+            <div class="tab-content" id="buffett">
+                <h3><i class="fas fa-chart-line"></i> Analyse Buffett <button class="kpi-info-btn" data-formula="Métriques d'investissement selon Warren Buffett"><i class="fas fa-info-circle"></i></button></h3>
+                <div class="buffett-metrics">
+                    <div class="metric-card">
+                        <h4>IRR (Taux de Rendement Interne) <button class="kpi-info-btn" data-formula="Taux actualisant les flux futurs à VAN=0"><i class="fas fa-info-circle"></i></button></h4>
+                        <div class="metric-value">18.2%</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Payback Period <button class="kpi-info-btn" data-formula="Temps pour récupérer l'investissement initial"><i class="fas fa-info-circle"></i></button></h4>
+                        <div class="metric-value">4.2 ans</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Break-even <button class="kpi-info-btn" data-formula="Point d'équilibre revenus = coûts"><i class="fas fa-info-circle"></i></button></h4>
+                        <div class="metric-value">2.8 ans</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Diversification <button class="kpi-info-btn" data-formula="Indice Herfindahl des investissements"><i class="fas fa-info-circle"></i></button></h4>
+                        <div class="metric-value">0.75</div>
+                    </div>
+                </div>
+                <div class="analysis-recommendation">
+                    <strong>Recommandation IA:</strong> IRR excellent (>15%). Maintenir la diversification et augmenter les positions dans l'immobilier locatif.
+                </div>
+            </div>
+
+            <div class="tab-content" id="ramsey">
+                <h3><i class="fas fa-stairs"></i> Baby Steps Ramsey <button class="kpi-info-btn" data-formula="Étapes financières selon Dave Ramsey"><i class="fas fa-info-circle"></i></button></h3>
+                <div class="baby-steps">
+                    <div class="step completed">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Étape 1: Fonds d'urgence initial (1000€) - ✅ Terminé</span>
+                    </div>
+                    <div class="step completed">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Étape 2: Éliminer dettes (hors immobilier) - ✅ Terminé</span>
+                    </div>
+                    <div class="step completed">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Étape 3: Fonds d'urgence complet (3-6 mois) - ✅ Terminé</span>
+                    </div>
+                    <div class="step current">
+                        <i class="fas fa-clock"></i>
+                        <span>Étape 4: Investir 15% revenus retraite - 🔄 En cours</span>
+                    </div>
+                    <div class="step pending">
+                        <i class="fas fa-circle"></i>
+                        <span>Étape 5: Épargne éducation enfants - 📝 Planifié</span>
+                    </div>
+                </div>
+                <div class="ramsey-stats">
+                    <div class="stat">
+                        <strong>Ratio Dépenses/Revenus:</strong> 77.5% (Objectif: <80%)
+                    </div>
+                    <div class="stat">
+                        <strong>Fonds d'urgence:</strong> 3 000 000 FCFA (6 mois)
+                    </div>
+                    <div class="stat">
+                        <strong>Progression Baby Steps:</strong> 4/7 (57%)
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="canvas">
+                <h3><i class="fas fa-sitemap"></i> Family Wealth Canvas <button class="kpi-info-btn" data-formula="Business Model Canvas adapté au patrimoine familial"><i class="fas fa-info-circle"></i></button></h3>
+                <div class="canvas-grid">
+                    <div class="canvas-section">
+                        <h4>💰 Sources de Revenus</h4>
+                        <ul>
+                            <li>Salaires: 800K FCFA/mois</li>
+                            <li>Business IIBA: 232K FCFA/mois</li>
+                            <li>Immobilier locatif: 450K FCFA/mois</li>
+                            <li>Épargne: 3M FCFA disponibles</li>
+                        </ul>
+                    </div>
+                    <div class="canvas-section">
+                        <h4>🎯 Propositions de Valeur</h4>
+                        <ul>
+                            <li>Éducation enfants de qualité</li>
+                            <li>Patrimoine immobilier durable</li>
+                            <li>Indépendance financière</li>
+                            <li>Transmission générationnelle</li>
+                        </ul>
+                    </div>
+                    <div class="canvas-section">
+                        <h4>👥 Bénéficiaires Clés</h4>
+                        <ul>
+                            <li>Famille nucléaire (4 personnes)</li>
+                            <li>Enfants (éducation prioritaire)</li>
+                            <li>Famille étendue (soutien)</li>
+                            <li>Générations futures</li>
+                        </ul>
+                    </div>
+                    <div class="canvas-section">
+                        <h4>⚠️ Facteurs de Risque</h4>
+                        <ul>
+                            <li>Concentration revenus (1 employeur)</li>
+                            <li>Illiquidité immobilier</li>
+                            <li>Risques de change (CHF/FCFA)</li>
+                            <li>Instabilité économique régionale</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="analysis-recommendation">
+                    <strong>Recommandation IA:</strong> Diversifier les sources de revenus. Objectif: 30% revenus passifs, 40% salaires, 30% business d'ici 2026.
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparisons Section -->
+        <section id="comparisons" class="content-section">
+            <div class="section-header">
+                <h2>Comparaisons & Reports</h2>
+            </div>
+
+            <div class="comparison-charts">
+                <div class="chart-container" style="height: 300px; position: relative;">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+
+            <div class="reports-summary">
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <strong>Économies totales:</strong> 2 500 000 FCFA
+                    </div>
+                    <div class="stat-item">
+                        <strong>Dépassements:</strong> 600 000 FCFA
+                    </div>
+                    <div class="stat-item">
+                        <strong>Écart net:</strong> +1 900 000 FCFA
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="content-section">
+            <div class="section-header">
+                <h2>Paramètres & Configuration</h2>
+                <div class="section-actions">
+                    <button class="btn btn--primary" id="importDataBtn">
+                        <i class="fas fa-upload"></i> Importer Excel
+                    </button>
+                    <button class="btn btn--secondary" id="exportCompleteBtn">
+                        <i class="fas fa-download"></i> Exporter Complet
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-tabs">
+                <button class="settings-tab-btn active" data-tab="kpis">Configuration KPI</button>
+                <button class="settings-tab-btn" data-tab="whatif">Scénarios What-If</button>
+                <button class="settings-tab-btn" data-tab="users">Utilisateurs</button>
+                <button class="settings-tab-btn" data-tab="import-export">Import/Export</button>
+                <button class="settings-tab-btn" data-tab="audit">Audit Trail</button>
+            </div>
+
+            <!-- Configuration KPI (renamed to avoid duplicate id and deactivated) -->
+            <div class="settings-tab-content" id="kpis_old">
+                <h3><i class="fas fa-sliders-h"></i> Configuration des KPI et Seuils</h3>
+                <div class="kpi-config-grid">
+                    <div class="config-section">
+                        <h4>Seuils d'Alerte</h4>
+                        <div class="form-group">
+                            <label class="form-label">Couverture Budgétaire (%) <button class="kpi-info-btn" data-formula="Seuil minimum de couverture des budgets par les sources"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="100" min="0" max="200">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Taux d'Épargne Cible (%) <button class="kpi-info-btn" data-formula="Objectif mensuel d'épargne sur revenus nets"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="20" min="5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ratio Endettement Max (%) <button class="kpi-info-btn" data-formula="Seuil maximum endettement/revenus selon normes bancaires"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="35" min="20" max="50">
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4>Paramètres de Calcul</h4>
+                        <div class="form-group">
+                            <label class="form-label">Taux d'Actualisation (%) <button class="kpi-info-btn" data-formula="Taux utilisé pour calculs VAN et IRR"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="8" min="3" max="15" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Inflation Annuelle (%) <button class="kpi-info-btn" data-formula="Taux d'inflation pour ajustements futurs"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="3.5" min="0" max="10" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Taux de Change CHF/FCFA <button class="kpi-info-btn" data-formula="Cours de change pour conversions automatiques"><i class="fas fa-info-circle"></i></button></label>
+                            <input type="number" class="form-control" value="650" min="500" max="800">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn--primary" id="saveKpiConfig">
+                        <i class="fas fa-save"></i> Sauvegarder Configuration
+                    </button>
+                    <button class="btn btn--secondary" id="resetKpiConfig">
+                        <i class="fas fa-undo"></i> Valeurs par Défaut
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scénarios What-If -->
+            <div class="settings-tab-content" id="whatif">
+                <h3><i class="fas fa-calculator"></i> Scénarios What-If</h3>
+                <div class="whatif-scenarios">
+                    <div class="scenario-card">
+                        <h4>📈 Scénario Optimiste</h4>
+                        <div class="scenario-params">
+                            <div class="form-group">
+                                <label class="form-label">Croissance Revenus (%/an)</label>
+                                <input type="number" class="form-control" value="12" min="-10" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">ROI Immobilier (%/an)</label>
+                                <input type="number" class="form-control" value="15" min="0" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Réduction Coûts (%/an)</label>
+                                <input type="number" class="form-control" value="8" min="0" max="20">
+                            </div>
+                        </div>
+                        <div class="scenario-results">
+                            <div class="result-item">
+                                <strong>Patrimoine 2030:</strong> 58M FCFA
+                            </div>
+                            <div class="result-item">
+                                <strong>Revenus passifs:</strong> 850K FCFA/mois
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scenario-card">
+                        <h4>📊 Scénario Réaliste</h4>
+                        <div class="scenario-params">
+                            <div class="form-group">
+                                <label class="form-label">Croissance Revenus (%/an)</label>
+                                <input type="number" class="form-control" value="6" min="-10" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">ROI Immobilier (%/an)</label>
+                                <input type="number" class="form-control" value="10" min="0" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Réduction Coûts (%/an)</label>
+                                <input type="number" class="form-control" value="3" min="0" max="20">
+                            </div>
+                        </div>
+                        <div class="scenario-results">
+                            <div class="result-item">
+                                <strong>Patrimoine 2030:</strong> 45M FCFA
+                            </div>
+                            <div class="result-item">
+                                <strong>Revenus passifs:</strong> 650K FCFA/mois
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scenario-card">
+                        <h4>📉 Scénario Pessimiste</h4>
+                        <div class="scenario-params">
+                            <div class="form-group">
+                                <label class="form-label">Croissance Revenus (%/an)</label>
+                                <input type="number" class="form-control" value="2" min="-10" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">ROI Immobilier (%/an)</label>
+                                <input type="number" class="form-control" value="5" min="0" max="30">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Réduction Coûts (%/an)</label>
+                                <input type="number" class="form-control" value="0" min="0" max="20">
+                            </div>
+                        </div>
+                        <div class="scenario-results">
+                            <div class="result-item">
+                                <strong>Patrimoine 2030:</strong> 32M FCFA
+                            </div>
+                            <div class="result-item">
+                                <strong>Revenus passifs:</strong> 450K FCFA/mois
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn--primary" id="runScenarios">
+                    <i class="fas fa-play"></i> Lancer Simulations
+                </button>
+            </div>
+
+            <!-- Utilisateurs -->
+            <div class="settings-tab-content" id="users">
+                <h3><i class="fas fa-users"></i> Gestion Utilisateurs & Bénéficiaires</h3>
+                <div class="users-management">
+                    <button class="btn btn--primary mb-16" id="addUserBtn">
+                        <i class="fas fa-user-plus"></i> Ajouter Utilisateur
+                    </button>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nom Complet</th>
+                                <th>Relation</th>
+                                <th>Rôle</th>
+                                <th>Priorité</th>
+                                <th>Email</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Configuration KPI -->
+            <!-- Configuration KPI -->
+            <div class="settings-tab-content active" id="kpis">
+                <h3><i class="fas fa-cog"></i> Configuration KPI</h3>
+                <div class="kpi-config-section">
+                    <div class="kpi-config-cards">
+                        <div class="kpi-config-card">
+                            <h4>Seuils & Objectifs</h4>
+                            <div class="form-group">
+                                <label>Couverture budgétaire (%)</label>
+                                <input type="number" id="kpiCouvertureBudget" value="100" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>Taux d'épargne (%)</label>
+                                <input type="number" id="kpiTauxEpargne" value="20" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>Ratio endettement (%)</label>
+                                <input type="number" id="kpiRatioEndettement" value="35" class="form-control">
+                            </div>
+                            <button class="btn btn--primary" onclick="saveKPIThresholds()">
+                                <i class="fas fa-save"></i> Enregistrer
+                            </button>
+                        </div>
+                        
+                        <div class="kpi-config-card">
+                            <h4>Calculs & Analyses</h4>
+                            <div class="form-group">
+                                <label>Taux d'actualisation (%)</label>
+                                <input type="number" id="kpiTauxActualisation" value="8" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>Période analyse (mois)</label>
+                                <input type="number" id="kpiPeriodeAnalyse" value="12" class="form-control">
+                            </div>
+                            <button class="btn btn--primary" onclick="saveKPICalculations()">
+                                <i class="fas fa-calculator"></i> Mettre à jour
+                            </button>
+                        </div>
+                        
+                        <div class="kpi-config-card">
+                            <h4>Objectifs Long Terme</h4>
+                            <div class="form-group">
+                                <label>Patrimoine cible 2030</label>
+                                <input type="number" id="kpiPatrimoineCible" value="50000000" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>ROI moyen cible (%)</label>
+                                <input type="number" id="kpiROICible" value="12" class="form-control">
+                            </div>
+                            <button class="btn btn--primary" onclick="saveKPITargets()">
+                                <i class="fas fa-bullseye"></i> Définir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import/Export -->
+            <div class="settings-tab-content" id="import-export">
+                <h3><i class="fas fa-exchange-alt"></i> Import/Export Excel Avancé</h3>
+                <div class="import-export-section">
+                    <div class="import-section">
+                        <h4>📤 Import de Données</h4>
+                        <div class="import-options">
+                            <div class="import-option">
+                                <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;">
+                                <button class="btn btn--primary" id="selectFileBtn">
+                                    <i class="fas fa-file-excel"></i> Sélectionner Fichier Excel
+                                </button>
+                                <div id="fileInfo" class="file-info"></div>
+                            </div>
+                            <div class="import-config">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="importProjects" checked> Projets & Tâches
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="importSources" checked> Sources & Allocations
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="importUsers" checked> Utilisateurs
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="replaceData"> Remplacer données existantes
+                                    </label>
+                                </div>
+                            </div>
+                            <button class="btn btn--success" id="executeImport" disabled>
+                                <i class="fas fa-upload"></i> Lancer Import
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="export-section">
+                        <h4>📥 Export de Données</h4>
+                        <div class="export-options">
+                            <div class="export-templates">
+                                <button class="btn btn--primary" id="exportTemplate">
+                                    <i class="fas fa-file-download"></i> Template Excel Vierge
+                                </button>
+                                <button class="btn btn--success" id="saveToGoogleDrive">
+                                    <i class="fab fa-google-drive"></i> Sauvegarder sur Google Drive
+                                </button>
+                                <a href="https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/5e4e7cac42e38ac4c68170ea3fa957ef/f7b62195-0fb5-4c11-ab91-118ae3c82a79/3fc32e8f.xlsx" 
+                                   target="_blank" class="btn btn--success">
+                                    <i class="fas fa-download"></i> Télécharger Exemple Complet
+                                </a>
+                            </div>
+                            <div class="export-config">
+                                <div class="form-group">
+                                    <label class="form-label">Format d'export:</label>
+                                    <select class="form-control" id="exportFormat">
+                                        <option value="excel">Excel (.xlsx)</option>
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="exportKPIs" checked> KPI & Métriques
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="exportCharts" checked> Graphiques (images)
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="exportFiltered"> Données filtrées uniquement
+                                    </label>
+                                </div>
+                            </div>
+                            <button class="btn btn--success" id="executeExport">
+                                <i class="fas fa-download"></i> Exporter Maintenant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Trail -->
+            <div class="settings-tab-content" id="audit">
+                <h3><i class="fas fa-history"></i> Audit Trail & Historique</h3>
+                <div class="audit-controls">
+                    <input type="text" class="form-control" id="auditSearch" placeholder="Rechercher dans l'audit...">
+                    <select class="form-control" id="auditFilter">
+                        <option value="">Toutes actions</option>
+                        <option value="CREATE">Créations</option>
+                        <option value="UPDATE">Modifications</option>
+                        <option value="DELETE">Suppressions</option>
+                        <option value="IMPORT">Imports</option>
+                        <option value="EXPORT">Exports</option>
+                    </select>
+                </div>
+                <div class="audit-timeline" id="auditTimeline">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for New Project (renamed to avoid duplicate id) -->
+    <div id="newProjectModal_old" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nouveau Projet</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="newProjectForm" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="projectName">Nom du projet *</label>
+                        <input type="text" id="projectName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="projectType">Type</label>
+                        <select id="projectType" class="form-control">
+                            <option value="Projet" selected>Projet</option>
+                            <option value="Tâche">Tâche</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="projectResponsible">Responsable *</label>
+                    <select id="projectResponsible" class="form-control" required>
+                        <option value="">-- Sélectionner --</option>
+                        <!-- Options populated by JavaScript from users data -->
+                    </select>
+                </div>
+                
+                <!-- Section Champs Calculés (Readonly) -->
+                <div class="form-section" id="calculatedFieldsSection" style="display: none;">
+                    <h4 class="form-section-title">Informations Calculées (Basées sur les Tâches)</h4>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="projectCategoryCalc">Catégorie</label>
+                            <input type="text" id="projectCategoryCalc" class="form-control" readonly placeholder="Calculée automatiquement">
+                            <input type="hidden" id="projectCategory">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="kiyosakirTypeCalc">Type Kiyosaki</label>
+                            <input type="text" id="kiyosakirTypeCalc" class="form-control" readonly placeholder="Calculé automatiquement">
+                            <input type="hidden" id="kiyosakirType">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="projectBeneficiaryCalc">Bénéficiaire</label>
+                            <input type="text" id="projectBeneficiaryCalc" class="form-control" readonly placeholder="Calculé automatiquement">
+                            <input type="hidden" id="projectBeneficiary">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="projectPriorityCalc">Priorité</label>
+                            <input type="text" id="projectPriorityCalc" class="form-control" readonly placeholder="Calculée automatiquement">
+                            <input type="hidden" id="projectPriority">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="projectBudgetCalc">Budget Total (FCFA)</label>
+                            <input type="text" id="projectBudgetCalc" class="form-control" readonly placeholder="Somme des budgets des tâches">
+                            <input type="hidden" id="projectBudget">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="projectTasksCount">Nombre de Tâches</label>
+                            <input type="text" id="projectTasksCount" class="form-control" readonly placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="projectStartCalc">Date Début</label>
+                            <input type="text" id="projectStartCalc" class="form-control" readonly placeholder="Plus tôt des tâches">
+                            <input type="hidden" id="projectStart">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="projectEndCalc">Date Fin</label>
+                            <input type="text" id="projectEndCalc" class="form-control" readonly placeholder="Plus tard des tâches">
+                            <input type="hidden" id="projectEnd">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="projectProbabilityCalc">Probabilité Moyenne (%)</label>
+                            <input type="text" id="projectProbabilityCalc" class="form-control" readonly placeholder="Moyenne des tâches">
+                            <input type="hidden" id="projectProbability">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="projectROICalc">ROI Moyen (%)</label>
+                            <input type="text" id="projectROICalc" class="form-control" readonly placeholder="Moyenne pondérée des tâches">
+                            <input type="hidden" id="projectROI">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="projectNotes">Notes</label>
+                    <textarea id="projectNotes" class="form-control" rows="3"></textarea>
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="newProjectForm" class="btn btn--primary">Créer Projet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Info Modal -->
+    <div id="kpiInfoModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Information KPI</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="kpiFormulaText">
+                    <!-- Formula will be populated by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--primary modal-close">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Modal -->
+    <div id="newProjectModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Projet</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="projectForm" class="form">
+                    <input type="hidden" name="id" id="projectId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="projectType">Type</label>
+                            <select id="projectType" name="type" required class="form-control" onchange="updateProjectForm()">
+                                <option value="Projet">Projet</option>
+                                <option value="Tâche">Tâche</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="projectParentField">
+                            <label for="projectParent">Projet Parent</label>
+                            <select id="projectParent" name="parent_id" class="form-control">
+                                <!-- Sera rempli dynamiquement -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="projectName">Nom</label>
+                        <input type="text" id="projectName" name="name" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectDescription">Description</label>
+                        <textarea id="projectNotes" name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="projectCategory">Catégorie</label>
+                            <select id="projectCategory" name="category" class="form-control" required>
+                                <option value="PATRIMOINE IMMOBILIER">Patrimoine Immobilier</option>
+                                <option value="LOCATION & REVENUS">Location & Revenus</option>
+                                <option value="ÉDUCATION & FORMATION">Éducation & Formation</option>
+                                <option value="VOYAGES & LOISIRS">Voyages & Loisirs</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="projectBudget">Budget (FCFA)</label>
+                            <input type="number" id="projectBudget" name="budget" class="form-control" required min="0">
+                        </div>
+                    </div>
+                    <div class="project-aggregates" id="projectAggregates">
+                        <!-- Ces informations seront calculées à partir des tâches -->
+                        <div class="aggregate-info">
+                            <strong>Dates:</strong> <span id="aggregatedDates">-</span>
+                        </div>
+                        <div class="aggregate-info">
+                            <strong>Budget total:</strong> <span id="aggregatedBudget">-</span>
+                        </div>
+                        <div class="aggregate-info">
+                            <strong>ROI moyen:</strong> <span id="aggregatedROI">-</span>
+                        </div>
+                        <div class="aggregate-info">
+                            <strong>Probabilité moyenne:</strong> <span id="aggregatedProbability">-</span>
+                        </div>
+                        <div class="aggregate-info">
+                            <strong>Nombre de tâches:</strong> <span id="tasksCount">-</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="projectForm" class="btn btn--primary" id="projectSubmitBtn">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="taskModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="taskModalTitle">Nouvelle Tâche</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm" class="form">
+                    <input type="hidden" id="taskId">
+                    <input type="hidden" id="taskParentId">
+                    
+                    <div class="form-group">
+                        <label for="taskName">Nom de la tâche</label>
+                        <input type="text" id="taskName" name="name" required class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="taskDescription">Description</label>
+                        <textarea id="taskDescription" name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskCategory">Catégorie</label>
+                            <select id="taskCategory" name="category" class="form-control">
+                                <option value="PATRIMOINE IMMOBILIER">Patrimoine Immobilier</option>
+                                <option value="LOCATION & REVENUS">Location & Revenus</option>
+                                <option value="ÉDUCATION & FORMATION">Éducation & Formation</option>
+                                <option value="VOYAGES & LOISIRS">Voyages & Loisirs</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskKiyosakiType">Type Kiyosaki</label>
+                            <select id="taskKiyosakiType" name="kiyosaki_type" class="form-control">
+                                <option value="Actif générateur">Actif générateur</option>
+                                <option value="Investissement formation">Investissement formation</option>
+                                <option value="Passif">Passif</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskBeneficiary">Bénéficiaire</label>
+                            <select id="taskBeneficiary" name="beneficiary" class="form-control">
+                                <option value="Famille">Famille</option>
+                                <option value="Enfants">Enfants</option>
+                                <option value="Parents">Parents</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskROI">ROI (%)</label>
+                            <input type="number" id="taskROI" name="roi" class="form-control" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="taskResponsible">Responsable</label>
+                            <select id="taskResponsible" name="responsible" class="form-control">
+                                <option value="">-- Sélectionner --</option>
+                                <!-- Options populated by JavaScript from users data -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskBudget">Budget</label>
+                            <input type="number" id="taskBudget" name="budget" step="0.01" min="0" class="form-control">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="taskUsed">Utilisé</label>
+                            <input type="number" id="taskUsed" name="used" step="0.01" min="0" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskStartDate">Date de début</label>
+                            <input type="date" id="taskStartDate" name="startDate" class="form-control">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="taskEndDate">Date de fin</label>
+                            <input type="date" id="taskEndDate" name="endDate" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="taskPriority">Priorité</label>
+                        <select id="taskPriority" name="priority" class="form-control">
+                            <option value="basse">Basse</option>
+                            <option value="moyenne" selected>Moyenne</option>
+                            <option value="haute">Haute</option>
+                            <option value="critique">Critique</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="taskStatus">Statut</label>
+                        <select id="taskStatus" name="status" class="form-control">
+                            <option value="Planifié" selected>Planifié</option>
+                            <option value="En cours">En cours</option>
+                            <option value="Retard">Retard</option>
+                            <option value="Terminé">Terminé</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="taskForm" class="btn btn--primary" id="taskSubmitBtn">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Modal -->
+    <div id="newSourceModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nouvelle Source</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="sourceForm" class="form">
+                    <input type="hidden" id="sourceId">
+                    <div class="form-group">
+                        <label for="sourceName">Nom</label>
+                        <input type="text" id="sourceName" name="name" required class="form-control">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sourceType">Type</label>
+                            <select id="sourceType" name="type" required class="form-control">
+                                <option value="Salaire">Salaire</option>
+                                <option value="Business">Business</option>
+                                <option value="Location">Location</option>
+                                <option value="Vente">Vente</option>
+                                <option value="Épargne">Épargne</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sourceResponsible">Responsable</label>
+                            <select id="sourceResponsible" name="responsible" required class="form-control">
+                                <option value="William">William</option>
+                                <option value="Alix">Alix</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sourceAvailable">Montant disponible</label>
+                            <input type="number" id="sourceAvailable" name="available" required class="form-control">
+                        </div>
+                                            </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sourceAvailabilityDate">Date disponibilité</label>
+                            <input type="date" id="sourceAvailabilityDate" name="availability_date" required class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="sourceRegularity">Régularité</label>
+                            <select id="sourceRegularity" name="regularity" required class="form-control">
+                                <option value="Récurrent">Récurrent</option>
+                                <option value="Variable">Variable</option>
+                                <option value="Ponctuel">Ponctuel</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceNotes">Notes</label>
+                        <textarea id="sourceNotes" name="notes" class="form-control"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="sourceForm" class="btn btn--primary">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Allocation Modal -->
+    <div id="newAllocationModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nouvelle allocation – <span id="modalSourceName"></span></h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Résumé de la source -->
+                <div class="source-summary">
+                    <div class="summary-item">
+                        <label>Total disponible:</label>
+                        <strong id="modalAvailable">0 FCFA</strong>
+                    </div>
+                    <div class="summary-item">
+                        <label>Pourcentage déjà utilisé:</label>
+                        <strong id="modalUsedRate">0%</strong>
+                    </div>
+                    <div class="summary-item">
+                        <label>Montant restant:</label>
+                        <strong id="modalRemaining">0 FCFA</strong>
+                    </div>
+                    <div class="summary-item">
+                        <label>Disponible le:</label>
+                        <strong id="modalAvailabilityDate">-</strong>
+                    </div>
+                </div>
+
+                <form id="allocationForm" class="form">
+                    <input type="hidden" id="allocationSourceId">
+                    <input type="hidden" id="allocationSourceName">
+                    <input type="hidden" id="allocationId">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="allocationTaskSearch">Rechercher une tâche</label>
+                            <input type="text" id="allocationTaskSearch" class="form-control" placeholder="Rechercher une tâche...">
+                        </div>
+                        <div class="form-group">
+                            <label for="allocationTaskSelect">Tâche à financer</label>
+                            <select id="allocationTaskSelect" name="task_id" required class="form-control">
+                                <!-- Rempli dynamiquement -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="allocationPlannedAmount">Montant prévu</label>
+                            <input type="number" id="allocationPlannedAmount" name="planned_amount" class="form-control" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="allocationActualAmount">Montant réel</label>
+                            <input type="number" id="allocationActualAmount" name="actual_amount" class="form-control" min="0">
+                        </div>
+                    </div>
+                    <input type="hidden" id="allocationAmount" name="amount">
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="allocationPlannedDate">Date prévue</label>
+                            <input type="date" id="allocationPlannedDate" name="planned_date" required class="form-control">
+                            <small id="allocationPlannedDelta" class="text-blue"></small>
+                        </div>
+                        <div class="form-group">
+                            <label for="allocationActualDate">Date réelle</label>
+                            <input type="date" id="allocationActualDate" name="actual_date" class="form-control">
+                            <small id="allocationActualDelta" class="text-blue"></small>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="allocationResponsible">Responsable</label>
+                            <select id="allocationResponsible" name="allocation_responsible" class="form-control">
+                                <option value="William">William</option>
+                                <option value="Alix">Alix</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="allocationNotes">Notes</label>
+                        <textarea id="allocationNotes" name="notes" class="form-control"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="allocationForm" class="btn btn--primary">Allouer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="newTaskModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Tâche</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm" class="form">
+                    <input type="hidden" id="taskId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskProjectSelect">Projet parent</label>
+                            <select id="taskProjectSelect" name="parent_id" required class="form-control">
+                                <!-- Les projets seront chargés dynamiquement -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskName">Nom de la tâche</label>
+                            <input type="text" id="taskName" name="name" required class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskCategory">Catégorie</label>
+                            <select id="taskCategory" name="category" required class="form-control">
+                                <option value="PATRIMOINE IMMOBILIER">Patrimoine Immobilier</option>
+                                <option value="LOCATION & REVENUS">Location & Revenus</option>
+                                <option value="ÉDUCATION & FORMATION">Éducation & Formation</option>
+                                <option value="VOYAGES & LOISIRS">Voyages & Loisirs</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskKiyosakiType">Type Kiyosaki</label>
+                            <select id="taskKiyosakiType" name="kiyosaki_type" required class="form-control">
+                                <option value="Actif générateur">Actif générateur</option>
+                                <option value="Investissement formation">Investissement formation</option>
+                                <option value="Passif">Passif</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskBeneficiary">Bénéficiaire</label>
+                            <select id="taskBeneficiary" name="beneficiary" required class="form-control">
+                                <option value="Famille">Famille</option>
+                                <option value="Enfants">Enfants</option>
+                                <option value="Parents">Parents</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskPriority">Priorité</label>
+                            <select id="taskPriority" name="priority" required class="form-control">
+                                <option value="Critique">Critique</option>
+                                <option value="Haute">Haute</option>
+                                <option value="Moyenne">Moyenne</option>
+                                <option value="Basse">Basse</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskBudget">Budget</label>
+                            <input type="number" id="taskBudget" name="budget" required class="form-control" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskROI">ROI (%)</label>
+                            <input type="number" id="taskROI" name="roi" class="form-control" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="taskResponsible">Responsable</label>
+                            <select id="taskResponsible" name="responsible" required class="form-control">
+                                <option value="">-- Sélectionner --</option>
+                                <!-- Options populated by JavaScript from users data -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskStart">Date début</label>
+                            <input type="date" id="taskStart" name="start_date" required class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="taskEnd">Date fin</label>
+                            <input type="date" id="taskEnd" name="end_date" required class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskStatus">Statut</label>
+                            <select id="taskStatus" name="status" required class="form-control">
+                                <option value="Planifié">Planifié</option>
+                                <option value="En cours">En cours</option>
+                                <option value="Terminé">Terminé</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskNotes">Notes</label>
+                        <textarea id="taskNotes" name="notes" class="form-control"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="taskForm" class="btn btn--primary">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Modal -->
+    <div id="userModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Utilisateur</h3>
+                <button class="modal-close" aria-label="Fermer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm" class="form">
+                    <input type="hidden" id="userId">
+                    <div class="form-group">
+                        <label for="userFullName">Nom complet</label>
+                        <input type="text" id="userFullName" name="full_name" required class="form-control">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userRole">Rôle</label>
+                            <select id="userRole" name="role" required class="form-control">
+                                <option value="Administrateur">Administrateur</option>
+                                <option value="Bénéficiaire">Bénéficiaire</option>
+                                <option value="Contributeur">Contributeur</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="userBeneficiaryType">Type bénéficiaire</label>
+                            <select id="userBeneficiaryType" name="beneficiary_type" required class="form-control">
+                                <option value="Parent">Parent</option>
+                                <option value="Enfant">Enfant</option>
+                                <option value="Famille étendue">Famille étendue</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userEmail">Email</label>
+                            <input type="email" id="userEmail" name="email" required class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="userPhone">Téléphone</label>
+                            <input type="tel" id="userPhone" name="phone" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userBirthDate">Date de naissance</label>
+                            <input type="date" id="userBirthDate" name="birth_date" required class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="userFamilyRelation">Relation familiale</label>
+                            <input type="text" id="userFamilyRelation" name="family_relation" required class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userAllocationPriority">Priorité allocation</label>
+                            <select id="userAllocationPriority" name="allocation_priority" required class="form-control">
+                                <option value="Critique">Critique</option>
+                                <option value="Haute">Haute</option>
+                                <option value="Moyenne">Moyenne</option>
+                                <option value="Basse">Basse</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="userStatus">Statut</label>
+                            <select id="userStatus" name="status" required class="form-control">
+                                <option value="Actif">Actif</option>
+                                <option value="Inactif">Inactif</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="userNotes">Notes</label>
+                        <textarea id="userNotes" name="notes" class="form-control"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn--secondary modal-close">Annuler</button>
+                <button type="submit" form="userForm" class="btn btn--primary">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Chat Contextuel -->
+    <div id="contextualChat" class="chat-widget" style="display: none;">
+        <button class="chat-toggle" id="chatToggle">
+            <i class="fas fa-comments"></i>
+        </button>
+        <div class="chat-container hidden" id="chatContainer">
+            <div class="chat-header">
+                <h4><i class="fas fa-robot"></i> Assistant IA</h4>
+                <button class="chat-close" id="chatClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message bot">
+                    <i class="fas fa-robot"></i>
+                    <div class="message-content">
+                        Bonjour ! Je suis votre assistant financier IA. Comment puis-je vous aider aujourd'hui ?
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Tapez votre question..." class="form-control">
+                <button id="chatSend" class="btn btn--primary">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Chart.js with defer to ensure it's loaded before app.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <!-- Load app.js after Chart.js -->
+    <script src="app.js" defer></script>
+</body>
+</html>
