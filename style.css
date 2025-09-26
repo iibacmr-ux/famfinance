@@ -755,7 +755,7 @@ select.form-control {
   display: block;
 }
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* Accessibility */
@@ -1440,6 +1440,13 @@ select.form-control {
 
 .comparison-table-container {
   overflow-x: auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.comparison-table-container .data-table {
+  min-width: 800px;
+  width: 100%;
 }
 
 /* Expert Analyses */
@@ -1963,8 +1970,7 @@ select.form-control {
 }
 
 .modal.hidden {
-  opacity: 0;
-  visibility: hidden;
+  display: none !important;
 }
 
 .modal-content {
@@ -2435,7 +2441,7 @@ select.form-control {
   .global-filters,
   .section-actions,
   .modal,
-  .toast-container,
+  /* .toast-container, */
   .chat-widget {
     display: none !important;
   }

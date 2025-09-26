@@ -3637,6 +3637,7 @@ let currentFilters = {
 let charts = {};
 
 // Vue Projets: état de tri et mode (liste/kanban)
+let currentSection = null;
 let viewState = { projectsSort: 'name', kanban: false, sourcesSort: 'name' };
 
 // KPI Formulas mapping
@@ -3714,6 +3715,14 @@ function computeMonthlyRemaining(task) {
   return months > 0 ? Math.ceil(remaining / months) : remaining;
 }
 
+// Helper function to get remaining months for a task
+function getTaskRemainingMonths(task) {
+  if (!task || !task.end_date) return 1;
+  const now = new Date();
+  const end = new Date(task.end_date);
+  return Math.max(1, monthsDiffInclusive(now, end));
+}
+
 function formatDate(dateString) {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
@@ -3731,20 +3740,43 @@ function getStatusClass(status) {
 }
 
 function showToast(message, type = 'info') {
+  try {
+    console.log('Showing toast:', message, type);
+    
   const toastContainer = document.getElementById('toastContainer');
-  if (!toastContainer) return;
+    if (!toastContainer) {
+      console.error('Toast container not found');
+      return;
+    }
   
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.textContent = message;
   
   toastContainer.appendChild(toast);
+    
+    // Force display
+    toast.style.display = 'block';
+    toast.style.opacity = '1';
   
   setTimeout(() => {
+      try {
     if (toast.parentNode) {
       toast.remove();
+        }
+      } catch (e) {
+        console.error('Error removing toast:', e);
     }
   }, 5000);
+  } catch (e) {
+    console.error('Error in showToast:', e);
+    // Fallback: try to show alert
+    try {
+      alert(message);
+    } catch (alertError) {
+      console.error('Cannot show alert either:', alertError);
+    }
+  }
 }
 
 function addAuditEvent(action, entity, entityId, details, changes) {
@@ -3839,6 +3871,7 @@ function initNavigation() {
 // Render section content based on current section
 function renderSectionContent(sectionId) {
   console.log('Rendering section:', sectionId);
+  currentSection = { id: sectionId };
   switch(sectionId) {
     case 'dashboard':
       renderDashboard();
@@ -4084,7 +4117,7 @@ function initFilters() {
         currentFilters.startDate = start;
         currentFilters.endDate = end;
         saveFiltersToStorage();
-        applyFilters();
+      applyFilters();
       }
     });
   }
@@ -4219,8 +4252,8 @@ function renderKPIs() {
     const startDate = new Date(currentFilters.startDate);
     const endDate = new Date(currentFilters.endDate);
     
-    // Filtrer les projets par date de début/fin
-    filteredProjects = filteredProjects.filter(project => {
+      // Filtrer les projets par date de début/fin
+      filteredProjects = filteredProjects.filter(project => {
       if (!project.start_date && !project.end_date) return true;
       
       const projectStartDate = new Date(project.start_date || project.end_date);
@@ -4231,15 +4264,15 @@ function renderKPIs() {
       }
       
       return (projectStartDate <= endDate && projectEndDate >= startDate);
-    });
-    
-    // Filtrer les sources par date de disponibilité
-    filteredSources = filteredSources.filter(source => {
+      });
+      
+      // Filtrer les sources par date de disponibilité
+      filteredSources = filteredSources.filter(source => {
       if (!source.availability_date) return true;
       
-      const availDate = new Date(source.availability_date);
+        const availDate = new Date(source.availability_date);
       return (availDate >= startDate && availDate <= endDate);
-    });
+      });
   }
 
   // Recalculer les KPI avec les données filtrées
@@ -4332,51 +4365,51 @@ function renderKPIs() {
 
   if (elements.activeProjects) {
     elements.activeProjects.textContent = kpis.active_projects;
-    elements.activeProjects.title = `Formule: Tâches avec status "En cours" ou "Planifié"\nValeur: ${kpis.active_projects} tâches`;
+    elements.activeProjects.title = `Projets Actifs: ${kpis.active_projects} projets\n\nFormule: Tâches avec status "En cours" ou "Planifié"\nDétail: ${activeTasks.length} tâches actives sur ${tasks.length} total\n\nDéfinition: Nombre de projets en cours d'exécution ou planifiés`;
   }
   if (elements.totalBudget) {
     elements.totalBudget.textContent = formatCurrency(kpis.total_budget);
-    elements.totalBudget.title = `Formule: Somme des budgets des projets\nValeur: ${formatCurrency(kpis.total_budget)}`;
+    elements.totalBudget.title = `Budget Total: ${formatCurrency(kpis.total_budget)}\n\nFormule: Somme des budgets des projets\nDétail: ${projects.length} projets × budget moyen ${formatCurrency(projects.length > 0 ? kpis.total_budget / projects.length : 0)}\n\nDéfinition: Montant total alloué aux projets`;
   }
   if (elements.totalUsed) {
     elements.totalUsed.textContent = formatCurrency(kpis.total_used);
-    elements.totalUsed.title = `Formule: Somme des montants alloués\nValeur: ${formatCurrency(kpis.total_used)}`;
+    elements.totalUsed.title = `Total Utilisé: ${formatCurrency(kpis.total_used)}\n\nFormule: Somme des montants alloués via allocations\nDétail: ${filteredAllocations.length} allocations × montant moyen ${formatCurrency(filteredAllocations.length > 0 ? kpis.total_used / filteredAllocations.length : 0)}\n\nDéfinition: Montant total déjà dépensé ou alloué`;
   }
   if (elements.avgProgress) {
     elements.avgProgress.textContent = formatPercentage(kpis.average_progress);
-    elements.avgProgress.title = `Formule: Moyenne des progressions des tâches\nValeur: ${formatPercentage(kpis.average_progress)}`;
+    elements.avgProgress.title = `Progression Moyenne: ${formatPercentage(kpis.average_progress)}\n\nFormule: Moyenne des progressions des tâches\nDétail: ${tasks.length} tâches × progression moyenne ${formatPercentage(kpis.average_progress)}\n\nDéfinition: Pourcentage moyen d'avancement des tâches`;
   }
   if (elements.netCashFlow) {
     elements.netCashFlow.textContent = formatCurrency(kpis.net_cash_flow);
-    elements.netCashFlow.title = `Formule: Sources disponibles - Alloué\nValeur: ${formatCurrency(kpis.net_cash_flow)}`;
+    elements.netCashFlow.title = `Cash Flow Net: ${formatCurrency(kpis.net_cash_flow)}\n\nFormule: Sources disponibles - Alloué\nDétail: ${formatCurrency(totalAvailable)} - ${formatCurrency(totalAllocatedFromAlloc)} = ${formatCurrency(kpis.net_cash_flow)}\n\nDéfinition: Liquidité disponible après allocations`;
   }
   if (elements.overdueTasks) {
     elements.overdueTasks.textContent = kpis.overdue_tasks;
-    elements.overdueTasks.title = `Formule: Tâches en retard (date < aujourd'hui)\nValeur: ${kpis.overdue_tasks} tâches`;
+    elements.overdueTasks.title = `Tâches en Retard: ${kpis.overdue_tasks} tâches\n\nFormule: Tâches avec date de fin < aujourd'hui et status ≠ "Terminé"\nDétail: ${overdueTasks} tâches en retard sur ${tasks.length} total\n\nDéfinition: Nombre de tâches dépassant leur échéance`;
   }
   if (elements.netWorth) {
     elements.netWorth.textContent = formatCurrency(kpis.net_worth);
-    elements.netWorth.title = `Formule: Somme des sources disponibles\nValeur: ${formatCurrency(kpis.net_worth)}`;
+    elements.netWorth.title = `Valeur Nette: ${formatCurrency(kpis.net_worth)}\n\nFormule: Somme des sources disponibles\nDétail: ${filteredSources.length} sources × montant moyen ${formatCurrency(filteredSources.length > 0 ? kpis.net_worth / filteredSources.length : 0)}\n\nDéfinition: Patrimoine financier total disponible`;
   }
   if (elements.savingsRate) {
     elements.savingsRate.textContent = formatPercentage(kpis.savings_rate);
-    elements.savingsRate.title = `Formule: (Alloué / Sources disponibles) × 100\nValeur: ${formatPercentage(kpis.savings_rate)}`;
+    elements.savingsRate.title = `Taux d'Épargne: ${formatPercentage(kpis.savings_rate)}\n\nFormule: (Alloué / Sources disponibles) × 100\nDétail: (${formatCurrency(totalAllocatedFromAlloc)} / ${formatCurrency(totalAvailable)}) × 100 = ${formatPercentage(kpis.savings_rate)}\n\nDéfinition: Pourcentage des ressources allouées par rapport aux sources disponibles`;
   }
   if (elements.debtRatio) {
     elements.debtRatio.textContent = formatPercentage(kpis.debt_to_income);
-    elements.debtRatio.title = `Formule: (Alloué / Budget total) × 100\nValeur: ${formatPercentage(kpis.debt_to_income)}`;
+    elements.debtRatio.title = `Ratio d'Endettement: ${formatPercentage(kpis.debt_to_income)}\n\nFormule: (Alloué / Budget total) × 100\nDétail: (${formatCurrency(totalAllocatedFromAlloc)} / ${formatCurrency(totalBudget)}) × 100 = ${formatPercentage(kpis.debt_to_income)}\n\nDéfinition: Pourcentage d'utilisation du budget total`;
   }
   if (elements.avgRoi) {
     elements.avgRoi.textContent = formatPercentage(kpis.avg_roi);
-    elements.avgRoi.title = `Formule: Moyenne des ROI des projets\nValeur: ${formatPercentage(kpis.avg_roi)}`;
+    elements.avgRoi.title = `ROI Moyen: ${formatPercentage(kpis.avg_roi)}\n\nFormule: Moyenne des ROI des projets\nDétail: ${projects.length} projets × ROI moyen ${formatPercentage(kpis.avg_roi)}\n\nDéfinition: Retour sur investissement moyen des projets`;
   }
   if (elements.avgProbability) {
     elements.avgProbability.textContent = formatPercentage(kpis.avg_probability);
-    elements.avgProbability.title = `Formule: Moyenne des probabilités des tâches\nValeur: ${formatPercentage(kpis.avg_probability)}`;
+    elements.avgProbability.title = `Probabilité Moyenne: ${formatPercentage(kpis.avg_probability)}\n\nFormule: Moyenne des probabilités des tâches\nDétail: ${tasks.length} tâches × probabilité moyenne ${formatPercentage(kpis.avg_probability)}\n\nDéfinition: Pourcentage moyen de réussite des tâches`;
   }
   if (elements.projectVelocity) {
     elements.projectVelocity.textContent = kpis.project_velocity.toFixed(1);
-    elements.projectVelocity.title = `Formule: Nombre de projets terminés\nValeur: ${kpis.project_velocity.toFixed(1)} projets`;
+    elements.projectVelocity.title = `Vélocité Projets: ${kpis.project_velocity.toFixed(1)} projets\n\nFormule: Nombre de projets terminés\nDétail: ${projectVelocity} projets terminés sur ${projects.length} total\n\nDéfinition: Nombre de projets complétés avec succès`;
   }
 }
 
@@ -4623,10 +4656,13 @@ function renderRecommendations() {
 
 // Projects rendering
 function renderProjects() {
-  console.log('Rendering projects...');
+  console.log('🎨 Rendering projects...');
+  console.log('📊 Total projects in appData:', appData.projects?.length || 0);
+  console.log('📋 Projects data:', appData.projects);
+  
   const container = document.getElementById('projectsContainer');
   if (!container) {
-    console.log('Projects container not found');
+    console.log('❌ Projects container not found');
     return;
   }
 
@@ -4681,8 +4717,21 @@ function renderProjects() {
     tasksByProject[parentId].push(task);
   });
 
-  // Get projects that have visible tasks
-  const filteredProjects = appData.projects.filter(p => p.parent_id === null && tasksByProject[p.id]);
+  // Get all projects (even those without tasks)
+  let filteredProjects = appData.projects.filter(p => p.parent_id === null);
+  
+  // Apply orphan filter if enabled
+  if (viewState && viewState.hideOrphanProjects) {
+    filteredProjects = filteredProjects.filter(project => {
+      const hasTasks = appData.projects.some(p => p.parent_id === project.id);
+      console.log(`📋 Project ${project.name} has tasks:`, hasTasks);
+      return hasTasks;
+    });
+    console.log('📋 After hiding orphans:', filteredProjects.length, 'projects remaining');
+  }
+  
+  console.log('📋 All projects found:', filteredProjects.length);
+  console.log('📋 Projects data:', filteredProjects.map(p => ({ id: p.id, name: p.name, parent_id: p.parent_id })));
 
   // Note: Temporal filtering is applied to tasks only, not to parent projects
   // Projects are shown if they have at least one visible task after filtering
@@ -4707,6 +4756,10 @@ function renderProjects() {
           <option value="deadline">Échéance</option>
         </select>
       </label>
+      <label style="margin-left: 12px;">
+        <input type="checkbox" id="hideOrphanProjects" style="margin-right: 4px;">
+        Masquer projets orphelins
+      </label>
       <button id="projectsToggleKanban" class="btn btn--secondary"><i class="fas fa-columns"></i> ${ (viewState && viewState.kanban) ? 'Vue Liste' : 'Vue Kanban' }</button>
     `;
     projectsSection.insertBefore(controls, container);
@@ -4714,6 +4767,14 @@ function renderProjects() {
     if (sel) { sel.value = (viewState && viewState.projectsSort) || 'name'; sel.onchange = (e)=>{ if (viewState) viewState.projectsSort = e.target.value; renderSectionContent('projects'); }; }
     const btn = document.getElementById('projectsToggleKanban');
     if (btn) { btn.onclick = ()=>{ if (viewState) viewState.kanban = !viewState.kanban; renderSectionContent('projects'); }; }
+    const hideOrphanCheckbox = document.getElementById('hideOrphanProjects');
+    if (hideOrphanCheckbox) { 
+      hideOrphanCheckbox.checked = (viewState && viewState.hideOrphanProjects) || false;
+      hideOrphanCheckbox.onchange = (e)=>{ 
+        if (viewState) viewState.hideOrphanProjects = e.target.checked; 
+        renderSectionContent('projects'); 
+      }; 
+    }
   } else {
     const btn = document.getElementById('projectsToggleKanban');
     if (btn) { btn.innerHTML = `<i class="fas fa-columns"></i> ${ (viewState && viewState.kanban) ? 'Vue Liste' : 'Vue Kanban' }`; }
@@ -4760,10 +4821,15 @@ function renderProjects() {
     }
   }
 
+  console.log('🎨 Injecting HTML into container...');
+  console.log('📊 Container element:', container);
+  console.log('📋 Projects to render:', filteredProjects.length);
+  
   container.innerHTML = filteredProjects.map(project => {
     // Get filtered tasks for this project
     const projectTasks = tasksByProject[project.id] || [];
     const tasks = sortTasksIntelligently(projectTasks);
+    console.log(`📋 Project ${project.name} has ${projectTasks.length} tasks`);
     
     return `
       <div class="project-item">
@@ -4821,7 +4887,8 @@ function renderProjects() {
                   <div class="task-meta">
                     ${formatCurrency(task.allocated)} / ${formatCurrency(task.budget)} • 
                     ${task.responsible} • 
-                    ${formatDate(task.start_date)} - ${formatDate(task.end_date)} • RME: ${formatCurrency(computeMonthlyRemaining(task))}/mois
+                    ${formatDate(task.start_date)} - ${formatDate(task.end_date)} • 
+                    <span title="RME (Reste Mensuel Équivalent): ${formatCurrency(computeMonthlyRemaining(task))}/mois&#10;&#10;Formule: (Budget - Alloué) ÷ Mois restants&#10;Détail: (${formatCurrency(task.budget)} - ${formatCurrency(task.allocated)}) ÷ ${getTaskRemainingMonths(task)} mois&#10;&#10;Définition: Montant restant à allouer chaque mois pour respecter le budget et l'échéance">RME: ${formatCurrency(computeMonthlyRemaining(task))}/mois</span>
                     ${task.notes ? ` • ${task.notes}` : ''}
                   </div>
                 </div>
@@ -4869,7 +4936,8 @@ function renderProjects() {
     showToast(`${filteredProjects.length}/${totalProjects} projets affichés`, 'info');
   }
 
-  console.log(`Rendered ${filteredProjects.length} projects`);
+  console.log(`✅ Rendered ${filteredProjects.length} projects`);
+  console.log('🎨 HTML injection completed');
 }
 
 // Small inline donut SVG renderer for financing completion
@@ -4942,7 +5010,7 @@ function renderProjectsKanban() {
         '<div class="kanban-card">'
           + '<div class="kc-title">'+ (t.name||'') +'</div>'
           + '<div class="kc-meta">'+ formatCurrency(t.allocated||0) +' / '+ formatCurrency(t.budget||0) +' • '+ (t.responsible||'') +'</div>'
-          + '<div class="kc-meta">'+ formatDate(t.start_date) +' - '+ formatDate(t.end_date) +' • RME: '+ formatCurrency(rme) +'/mois</div>'
+          + '<div class="kc-meta">'+ formatDate(t.start_date) +' - '+ formatDate(t.end_date) +' • <span title="RME (Reste Mensuel Équivalent): '+ formatCurrency(rme) +'/mois&#10;&#10;Formule: (Budget - Alloué) ÷ Mois restants&#10;Détail: ('+ formatCurrency(t.budget) +' - '+ formatCurrency(t.allocated) +') ÷ '+ getTaskRemainingMonths(t) +' mois&#10;&#10;Définition: Montant restant à allouer chaque mois pour respecter le budget et l\'échéance">RME: '+ formatCurrency(rme) +'/mois</span></div>'
           + (parent ? '<div class="kc-parent">↳ '+ parent.name +'</div>' : '')
         + '</div>'
       );
@@ -4978,7 +5046,9 @@ function renderProjectsKanban() {
 }
 
 function renderSources() {
-  console.log('Rendering sources...');
+  console.log('🎨 Rendering sources...');
+  console.log('📊 Total sources in appData:', appData.sources?.length || 0);
+  console.log('📋 Sources data:', appData.sources);
 
   // Build and sort sources according to viewState, then apply filters
   let sources = [...(appData.sources||[])];
@@ -5007,7 +5077,7 @@ function renderSources() {
     case 'name': sources.sort((a,b)=> (a.name||'').localeCompare(b.name||'')); break;
     case 'available': sources.sort((a,b)=> (b.available||0) - (a.available||0)); break;
     case 'remaining': sources.sort((a,b)=> (b.remaining||0) - (a.remaining||0)); break;
-    case 'allocation_rate': sources.sort((a,b)=> (b.allocation_rate||0) - (a.allocation_rate||0)); break;
+    case 'allocation_rate': sources.sort((a,b)=> calculateMonthlyNeed(b) - calculateMonthlyNeed(a)); break;
     case 'availability_date': sources.sort((a,b)=> new Date(a.availability_date||'2100-01-01') - new Date(b.availability_date||'2100-01-01')); break;
   }
   window.__sortedSources = sources;
@@ -5028,7 +5098,7 @@ function renderSources() {
           <option value="name">Nom</option>
           <option value="available">Disponible</option>
           <option value="remaining">Restant</option>
-          <option value="allocation_rate">Taux d'allocation</option>
+          <option value="allocation_rate">Besoin ce mois</option>
           <option value="availability_date">Date disponible</option>
         </select>
       </label>
@@ -5108,8 +5178,8 @@ function renderSourcesTable() {
         ${formatCurrency(source.remaining)}
       </td>
       <td>
-        <span class="${source.allocation_rate > 100 ? 'text-red' : 'text-blue'}">
-          ${formatPercentage(source.allocation_rate)}
+        <span class="text-blue">
+          ${formatCurrency(calculateMonthlyNeed(source))}
         </span>
       </td>
       <td><strong>${source.responsible}</strong></td>
@@ -5235,7 +5305,7 @@ function renderSourcesKPIs() {
     map[a.source_id] = (map[a.source_id]||0) + amt;
     return map;
   }, {});
-
+  
   const totals = sources.reduce((acc, source) => {
     acc.available += (source.available || 0);
     const calcAllocated = allocatedBySource[source.id] || 0;
@@ -5271,10 +5341,15 @@ function renderSourcesKPIs() {
     // Calculer les montants alloués par période
     filteredAllocations.forEach(allocation => {
       const allocationDate = new Date(allocation.planned_date || allocation.actual_date || allocation.month + '-01');
-      const amount = Math.max(allocation.planned || 0, allocation.actual || 0);
+      const plannedAmount = parseFloat(allocation.planned) || 0;
+      const actualAmount = parseFloat(allocation.actual) || 0;
+      const amount = Math.max(plannedAmount, actualAmount);
+      
+      console.log(`📊 Allocation ${allocation.id}: planned=${plannedAmount}, actual=${actualAmount}, amount=${amount}, date=${allocationDate.toISOString()}`);
       
       if (allocationDate >= startDate && allocationDate <= endDate) {
         allocatedThisMonth += amount;
+        console.log(`📊 Added to this month: ${amount}, total: ${allocatedThisMonth}`);
       } else if (allocationDate < startDate) {
         allocatedPreviousMonths += amount;
       }
@@ -5298,10 +5373,22 @@ function renderSourcesKPIs() {
     remainingPreviousMonths: document.getElementById('remainingPreviousMonths')
   };
 
-  if (elements.totalAvailable) elements.totalAvailable.textContent = formatCurrency(totals.available);
-  if (elements.totalAllocated) elements.totalAllocated.textContent = formatCurrency(totals.allocated);
-  if (elements.totalRemaining) elements.totalRemaining.textContent = formatCurrency(remaining);
-  if (elements.allocationRate) elements.allocationRate.textContent = formatPercentage(allocationRate);
+  if (elements.totalAvailable) {
+    elements.totalAvailable.textContent = formatCurrency(totals.available);
+    elements.totalAvailable.title = `Total Disponible: ${formatCurrency(totals.available)}\n\nFormule: Somme des sources disponibles\nDétail: ${sources.length} sources × montant moyen ${formatCurrency(sources.length > 0 ? totals.available / sources.length : 0)}\n\nDéfinition: Patrimoine financier total disponible`;
+  }
+  if (elements.totalAllocated) {
+    elements.totalAllocated.textContent = formatCurrency(totals.allocated);
+    elements.totalAllocated.title = `Total Alloué: ${formatCurrency(totals.allocated)}\n\nFormule: Somme des montants alloués via allocations\nDétail: ${filteredAllocations.length} allocations × montant moyen ${formatCurrency(filteredAllocations.length > 0 ? totals.allocated / filteredAllocations.length : 0)}\n\nDéfinition: Montant total déjà alloué aux projets`;
+  }
+  if (elements.totalRemaining) {
+    elements.totalRemaining.textContent = formatCurrency(remaining);
+    elements.totalRemaining.title = `Total Restant: ${formatCurrency(remaining)}\n\nFormule: Sources disponibles - Alloué\nDétail: ${formatCurrency(totals.available)} - ${formatCurrency(totals.allocated)} = ${formatCurrency(remaining)}\n\nDéfinition: Liquidité disponible après allocations`;
+  }
+  if (elements.allocationRate) {
+    elements.allocationRate.textContent = formatPercentage(allocationRate);
+    elements.allocationRate.title = `Taux d'Allocation: ${formatPercentage(allocationRate)}\n\nFormule: (Alloué / Sources disponibles) × 100\nDétail: (${formatCurrency(totals.allocated)} / ${formatCurrency(totals.available)}) × 100 = ${formatPercentage(allocationRate)}\n\nDéfinition: Pourcentage des ressources allouées par rapport aux sources disponibles`;
+  }
   
   // Afficher les KPIs détaillés si on filtre par mois
   const cards = {
@@ -5313,12 +5400,30 @@ function renderSourcesKPIs() {
   };
   
   if (currentFilters.startDate && currentFilters.endDate) {
-    // Mettre à jour les valeurs
-    if (elements.availableThisMonth) elements.availableThisMonth.textContent = formatCurrency(availableThisMonth);
-    if (elements.allocatedThisMonth) elements.allocatedThisMonth.textContent = formatCurrency(allocatedThisMonth);
-    if (elements.remainingThisMonth) elements.remainingThisMonth.textContent = formatCurrency(remainingThisMonth);
-    if (elements.availablePreviousMonths) elements.availablePreviousMonths.textContent = formatCurrency(availablePreviousMonths);
-    if (elements.remainingPreviousMonths) elements.remainingPreviousMonths.textContent = formatCurrency(remainingPreviousMonths);
+    // Mettre à jour les valeurs avec tooltips détaillés
+    if (elements.availableThisMonth) {
+      elements.availableThisMonth.textContent = formatCurrency(availableThisMonth);
+      elements.availableThisMonth.title = `Disponible ce Mois: ${formatCurrency(availableThisMonth)}\n\nFormule: Sources avec date de disponibilité dans la période\nDétail: ${sources.filter(s => s.availability_date && new Date(s.availability_date) >= new Date(currentFilters.startDate) && new Date(s.availability_date) <= new Date(currentFilters.endDate)).length} sources dans la période\n\nDéfinition: Montant disponible dans la période sélectionnée`;
+    }
+    if (elements.allocatedThisMonth) {
+      elements.allocatedThisMonth.textContent = formatCurrency(allocatedThisMonth);
+      elements.allocatedThisMonth.title = `Alloué ce Mois: ${formatCurrency(allocatedThisMonth)}\n\nFormule: Allocations avec date dans la période\nDétail: ${filteredAllocations.filter(a => {
+        const date = new Date(a.planned_date || a.actual_date || a.month + '-01');
+        return date >= new Date(currentFilters.startDate) && date <= new Date(currentFilters.endDate);
+      }).length} allocations dans la période\n\nDéfinition: Montant alloué dans la période sélectionnée`;
+    }
+    if (elements.remainingThisMonth) {
+      elements.remainingThisMonth.textContent = formatCurrency(remainingThisMonth);
+      elements.remainingThisMonth.title = `Restant ce Mois: ${formatCurrency(remainingThisMonth)}\n\nFormule: Disponible ce mois - Alloué ce mois\nDétail: ${formatCurrency(availableThisMonth)} - ${formatCurrency(allocatedThisMonth)} = ${formatCurrency(remainingThisMonth)}\n\nDéfinition: Liquidité restante dans la période sélectionnée`;
+    }
+    if (elements.availablePreviousMonths) {
+      elements.availablePreviousMonths.textContent = formatCurrency(availablePreviousMonths);
+      elements.availablePreviousMonths.title = `Reliquats Précédents: ${formatCurrency(availablePreviousMonths)}\n\nFormule: Sources avec date de disponibilité avant la période\nDétail: ${sources.filter(s => s.availability_date && new Date(s.availability_date) < new Date(currentFilters.startDate)).length} sources antérieures\n\nDéfinition: Montant disponible avant la période sélectionnée`;
+    }
+    if (elements.remainingPreviousMonths) {
+      elements.remainingPreviousMonths.textContent = formatCurrency(remainingPreviousMonths);
+      elements.remainingPreviousMonths.title = `Reliquats Restants: ${formatCurrency(remainingPreviousMonths)}\n\nFormule: Reliquats précédents - Alloué précédemment\nDétail: ${formatCurrency(availablePreviousMonths)} - ${formatCurrency(allocatedPreviousMonths)} = ${formatCurrency(remainingPreviousMonths)}\n\nDéfinition: Liquidité restante des périodes antérieures`;
+    }
     
     // Afficher les cartes
     Object.values(cards).forEach(card => {
@@ -5454,6 +5559,39 @@ function renderAllocationsTable() {
 function getParamBool(name){
   try { const p=(appData.parameters||[]).find(x=>x.parameter===name); if (!p) return false; const v=p.value; return v===true || v==='true' || v===1 || v==='1'; } catch(e){ return false; }
 }
+
+// Calculate monthly need for a source based on global filters
+function calculateMonthlyNeed(source) {
+  try {
+    // Get all allocations for this source that match current filters
+    const sourceAllocations = (appData.allocations || []).filter(allocation => 
+      allocation.source_id === source.id
+    );
+    
+    // Apply date filters if active
+    let filteredAllocations = sourceAllocations;
+    if (currentFilters.startDate && currentFilters.endDate) {
+      const startDate = new Date(currentFilters.startDate);
+      const endDate = new Date(currentFilters.endDate);
+      
+      filteredAllocations = sourceAllocations.filter(allocation => {
+        const allocationDate = new Date(allocation.planned_date || allocation.actual_date || '2100-01-01');
+        return allocationDate >= startDate && allocationDate <= endDate;
+      });
+    }
+    
+    // Calculate total need (sum of planned amounts)
+    const totalNeed = filteredAllocations.reduce((sum, allocation) => {
+      return sum + (parseFloat(allocation.planned) || 0);
+    }, 0);
+    
+    console.log(`📊 Monthly need for source ${source.name}:`, totalNeed, 'from', filteredAllocations.length, 'allocations');
+    return totalNeed;
+  } catch (e) {
+    console.error('Error calculating monthly need:', e);
+    return 0;
+  }
+}
 function getParamValue(name, def){ try{ const p=(appData.parameters||[]).find(x=>x.parameter===name); if (!p) return def; const v=p.value; const n=(typeof v==='string')? parseFloat(v) : v; return (isNaN(n)? v : n); }catch(e){ return def; } }
 function setParamValue(name, value, category){ try{ let p=(appData.parameters||[]).find(x=>x.parameter===name); if (p){ p.value = value; } else { (appData.parameters=appData.parameters||[]).push({ category: category||'CONFIG', parameter:name, value, description:'' }); } }catch(e){} }
 function attachAllocationInteractions(src){
@@ -5479,10 +5617,26 @@ function attachAllocationInteractions(src){
 
   const updateDeltas = ()=>{
     try{
-      const taskId = parseInt(taskSel?.value||'0');
+      const taskId = taskSel?.value || null;
       const task = (appData.projects||[]).find(p=>p.id===taskId);
+      console.log('🔄 Updating deltas for taskId:', taskId, 'task:', task);
       const srcRem = Math.max(0, (src?.available||0) - baseAllocated);
-      const taskRem = task ? Math.max(0, (task.budget||0) - (task.allocated||0)) : 0;
+      
+      // Recalculer le montant alloué de la tâche en incluant toutes les allocations existantes
+      let taskAllocated = 0;
+      if (task) {
+        const taskAllocations = (appData.allocations||[]).filter(a => a.task_id === task.id);
+        taskAllocated = taskAllocations.reduce((sum, a) => sum + Math.max(a.planned||0, a.actual||0), 0);
+        console.log('📊 Task allocations found:', taskAllocations.length, 'total allocated:', taskAllocated);
+      }
+      const taskRem = task ? Math.max(0, (task.budget||0) - taskAllocated) : 0;
+      console.log('📊 Task remaining calculation:', {
+        taskId: task?.id,
+        budget: task?.budget,
+        allocated: taskAllocated,
+        remaining: taskRem
+      });
+      
       const planned = parseFloat(plannedEl?.value||'0')||0;
       const actual = parseFloat(actualEl?.value||'0')||0;
       const predicted = Math.max(planned, actual);
@@ -5490,9 +5644,24 @@ function attachAllocationInteractions(src){
       const predictedRemaining = Math.max(0, (src?.available||0) - predictedAllocated);
       if (pDeltaEl) pDeltaEl.textContent = `alloué actuel: ${formatCurrency(baseAllocated)} • alloué prévu: ${formatCurrency(predictedAllocated)} • restant prévu: ${formatCurrency(predictedRemaining)}`;
       if (aDeltaEl) aDeltaEl.textContent = `alloué actuel: ${formatCurrency(baseAllocated)} • alloué prévu: ${formatCurrency(predictedAllocated)} • restant prévu: ${formatCurrency(predictedRemaining)}`;
+      // Recalculer l'alloué actuel de la tâche pour le message d'erreur (même logique que taskRecap)
+      let taskCurrentAllocated = 0;
+      let taskBaseAllocated = 0;
+      if (task) {
+        const taskAllocs = (appData.allocations||[]).filter(a=>a.task_id===task.id);
+        taskCurrentAllocated = taskAllocs.reduce((s,a)=> s + Math.max(a.planned||0, a.actual||0), 0);
+        taskBaseAllocated = taskCurrentAllocated;
+        if (editingId) {
+          const oldAllocation = (appData.allocations||[]).find(a=>a.id===editingId);
+          const oldAmt = oldAllocation ? Math.max(oldAllocation.planned||0, oldAllocation.actual||0) : 0;
+          if (oldAllocation && oldAllocation.task_id === task.id) taskBaseAllocated = Math.max(0, taskCurrentAllocated - oldAmt);
+        }
+      }
+      const taskRemCorrected = task ? Math.max(0, (task.budget||0) - taskBaseAllocated) : 0;
+      
       // Color feedback if exceed
-      const overPlanned = planned>srcRem || planned>taskRem;
-      const overActual = actual>srcRem || actual>taskRem;
+      const overPlanned = planned>srcRem || planned>taskRemCorrected;
+      const overActual = actual>srcRem || actual>taskRemCorrected;
       if (plannedEl) plannedEl.style.borderColor = overPlanned? '#D32F2F' : '';
       if (actualEl) actualEl.style.borderColor = overActual? '#D32F2F' : '';
       // Delta color badges
@@ -5526,7 +5695,7 @@ function attachAllocationInteractions(src){
         recap.style.color = warn ? '#D32F2F' : '#1565C0';
         recap.style.background = warn ? 'rgba(211, 47, 47, 0.06)' : 'rgba(21, 101, 192, 0.06)';
         recap.textContent = warn
-          ? `Attention: montant dépasse la capacité (source ${formatCurrency(srcRem)}, tâche ${formatCurrency(taskRem)}).`
+          ? `Attention: montant dépasse la capacité (source ${formatCurrency(srcRem)}, tâche ${formatCurrency(taskRemCorrected)}).`
           : `Impact: alloué prévu ${formatCurrency(predictedAllocated)} • restant prévu ${formatCurrency(predictedRemaining)}`;
       }
 
@@ -5571,7 +5740,7 @@ function attachAllocationInteractions(src){
       if (!strict) return true;
       const planned = parseFloat(plannedEl?.value||'0')||0;
       const actual = parseFloat(actualEl?.value||'0')||0;
-      const taskId = parseInt(taskSel?.value||'0')||null;
+      const taskId = taskSel?.value || null;
       const task = (appData.projects||[]).find(p=>p.id===taskId);
       const srcRem = Math.max(0, (src?.available||0) - (src?.allocated||0));
       const taskRem = task ? Math.max(0, (task.budget||0) - (task.allocated||0)) : 0;
@@ -5718,19 +5887,19 @@ function updateKiyosakiDisplay(data) {
   
   if (employeeValue) {
     employeeValue.textContent = formatCurrency(data['Employee'] || 0);
-    employeeValue.title = `Formule: Somme des budgets des projets "Actif générateur"\nValeur: ${formatCurrency(data['Employee'] || 0)}`;
+    employeeValue.title = `Employee (E): ${formatCurrency(data['Employee'] || 0)}\n\nFormule: Somme des budgets des projets "Actif générateur"\nDétail: Projets avec type_kiyosaki = "Actif générateur"\n\nDéfinition: Investissements générant des revenus passifs réguliers`;
   }
   if (selfEmployedValue) {
     selfEmployedValue.textContent = formatCurrency(data['Self-Employed'] || 0);
-    selfEmployedValue.title = `Formule: Somme des budgets des projets "Actif spéculatif"\nValeur: ${formatCurrency(data['Self-Employed'] || 0)}`;
+    selfEmployedValue.title = `Self-Employed (S): ${formatCurrency(data['Self-Employed'] || 0)}\n\nFormule: Somme des budgets des projets "Actif spéculatif"\nDétail: Projets avec type_kiyosaki = "Actif spéculatif"\n\nDéfinition: Investissements à haut risque et potentiel de gain élevé`;
   }
   if (businessValue) {
     businessValue.textContent = formatCurrency(data['Business'] || 0);
-    businessValue.title = `Formule: Somme des budgets des projets "Passif"\nValeur: ${formatCurrency(data['Business'] || 0)}`;
+    businessValue.title = `Business (B): ${formatCurrency(data['Business'] || 0)}\n\nFormule: Somme des budgets des projets "Passif"\nDétail: Projets avec type_kiyosaki = "Passif"\n\nDéfinition: Dépenses et obligations financières récurrentes`;
   }
   if (investorValue) {
     investorValue.textContent = formatCurrency(data['Investor'] || 0);
-    investorValue.title = `Formule: Somme des budgets des projets "Dépense"\nValeur: ${formatCurrency(data['Investor'] || 0)}`;
+    investorValue.title = `Investor (I): ${formatCurrency(data['Investor'] || 0)}\n\nFormule: Somme des budgets des projets "Dépense"\nDétail: Projets avec type_kiyosaki = "Dépense"\n\nDéfinition: Dépenses et consommations non productives`;
   }
   
   // Update recommendation based on values
@@ -5791,19 +5960,19 @@ function updateBuffetDisplay(data) {
   
   if (irrValue) {
     irrValue.textContent = `${data.irr.toFixed(1)}%`;
-    irrValue.title = `Formule: ROI moyen des projets\nValeur: ${data.irr.toFixed(1)}%`;
+    irrValue.title = `IRR (Taux de Rendement Interne): ${data.irr.toFixed(1)}%\n\nFormule: ROI moyen des projets\nDétail: Moyenne des ROI de tous les projets\n\nDéfinition: Taux de rendement interne moyen des investissements`;
   }
   if (paybackValue) {
     paybackValue.textContent = `${data.paybackPeriod.toFixed(1)} mois`;
-    paybackValue.title = `Formule: (Budget total / Alloué) × 12\nValeur: ${data.paybackPeriod.toFixed(1)} mois`;
+    paybackValue.title = `Période de Récupération: ${data.paybackPeriod.toFixed(1)} mois\n\nFormule: (Budget total / Alloué) × 12\nDétail: Temps nécessaire pour récupérer l'investissement\n\nDéfinition: Durée moyenne de retour sur investissement`;
   }
   if (npvValue) {
     npvValue.textContent = formatCurrency(data.npv);
-    npvValue.title = `Formule: Valeur totale - Alloué\nValeur: ${formatCurrency(data.npv)}`;
+    npvValue.title = `NPV (Valeur Nette Actuelle): ${formatCurrency(data.npv)}\n\nFormule: Valeur totale - Alloué\nDétail: Valeur actuelle des investissements moins coûts\n\nDéfinition: Valeur nette actuelle des investissements`;
   }
   if (roiValue) {
     roiValue.textContent = `${data.allocationRate.toFixed(1)}%`;
-    roiValue.title = `Formule: (Alloué / Valeur totale) × 100\nValeur: ${data.allocationRate.toFixed(1)}%`;
+    roiValue.title = `ROI (Retour sur Investissement): ${data.allocationRate.toFixed(1)}%\n\nFormule: (Alloué / Valeur totale) × 100\nDétail: Pourcentage d'utilisation des ressources\n\nDéfinition: Efficacité d'utilisation des ressources disponibles`;
   }
   
   // Update recommendation
@@ -5869,19 +6038,19 @@ function updateRamseyDisplay(data) {
   
   if (emergencyValue) {
     emergencyValue.textContent = formatCurrency(data.emergencyFund);
-    emergencyValue.title = `Formule: Somme des sources "Fond d'urgence"\nValeur: ${formatCurrency(data.emergencyFund)}`;
+    emergencyValue.title = `Fond d'Urgence: ${formatCurrency(data.emergencyFund)}\n\nFormule: Somme des sources "Fond d'urgence"\nDétail: Sources avec type = "Fond d'urgence"\n\nDéfinition: Réserve financière pour les urgences (3-6 mois de dépenses)`;
   }
   if (debtValue) {
     debtValue.textContent = `${data.debtRatio.toFixed(1)}%`;
-    debtValue.title = `Formule: (Alloué / Budget total) × 100\nValeur: ${data.debtRatio.toFixed(1)}%`;
+    debtValue.title = `Ratio d'Endettement: ${data.debtRatio.toFixed(1)}%\n\nFormule: (Alloué / Budget total) × 100\nDétail: Pourcentage d'utilisation du budget total\n\nDéfinition: Ratio d'endettement (doit être < 25%)`;
   }
   if (budgetValue) {
     budgetValue.textContent = formatCurrency(data.totalBudget);
-    budgetValue.title = `Formule: Somme des budgets des projets\nValeur: ${formatCurrency(data.totalBudget)}`;
+    budgetValue.title = `Budget Total: ${formatCurrency(data.totalBudget)}\n\nFormule: Somme des budgets des projets\nDétail: Total des budgets de tous les projets\n\nDéfinition: Montant total alloué aux projets`;
   }
   if (allocatedValue) {
     allocatedValue.textContent = formatCurrency(data.totalAllocated);
-    allocatedValue.title = `Formule: Somme des montants alloués\nValeur: ${formatCurrency(data.totalAllocated)}`;
+    allocatedValue.title = `Total Alloué: ${formatCurrency(data.totalAllocated)}\n\nFormule: Somme des montants alloués\nDétail: Total des montants déjà alloués\n\nDéfinition: Montant total déjà dépensé ou alloué`;
   }
   
   // Update Baby Steps progression (simplified)
@@ -6003,19 +6172,19 @@ function updateFamilyCanvasDisplay(data) {
   
   if (valueValue) {
     valueValue.textContent = formatCurrency(data.totalValue);
-    valueValue.title = `Formule: Somme des sources disponibles\nValeur: ${formatCurrency(data.totalValue)}`;
+    valueValue.title = `Valeur Totale: ${formatCurrency(data.totalValue)}\n\nFormule: Somme des sources disponibles\nDétail: Patrimoine financier total disponible\n\nDéfinition: Valeur nette totale de la famille`;
   }
   if (budgetValue) {
     budgetValue.textContent = formatCurrency(data.totalBudget);
-    budgetValue.title = `Formule: Somme des budgets des projets\nValeur: ${formatCurrency(data.totalBudget)}`;
+    budgetValue.title = `Budget Total: ${formatCurrency(data.totalBudget)}\n\nFormule: Somme des budgets des projets\nDétail: Total des budgets de tous les projets\n\nDéfinition: Montant total alloué aux projets`;
   }
   if (allocatedValue) {
     allocatedValue.textContent = formatCurrency(data.totalAllocated);
-    allocatedValue.title = `Formule: Somme des montants alloués\nValeur: ${formatCurrency(data.totalAllocated)}`;
+    allocatedValue.title = `Total Alloué: ${formatCurrency(data.totalAllocated)}\n\nFormule: Somme des montants alloués\nDétail: Total des montants déjà alloués\n\nDéfinition: Montant total déjà dépensé ou alloué`;
   }
   if (completionValue) {
     completionValue.textContent = `${data.completionRate.toFixed(1)}%`;
-    completionValue.title = `Formule: (Alloué / Budget total) × 100\nValeur: ${data.completionRate.toFixed(1)}%`;
+    completionValue.title = `Taux de Réalisation: ${data.completionRate.toFixed(1)}%\n\nFormule: (Alloué / Budget total) × 100\nDétail: Pourcentage d'avancement des projets\n\nDéfinition: Pourcentage de réalisation des objectifs familiaux`;
   }
   
   // Update Family Canvas quadrants
@@ -6298,12 +6467,19 @@ function initModals() {
   });
 
   function showKPIInfo(formula) {
+    console.log('🔍 showKPIInfo called with formula:', formula);
     const kpiFormulaText = document.getElementById('kpiFormulaText');
+    console.log('🔍 kpiFormulaText found:', !!kpiFormulaText);
     if (kpiFormulaText) {
       kpiFormulaText.textContent = formula || 'Formule non disponible';
     }
+    console.log('🔍 kpiInfoModal found:', !!kpiInfoModal);
     if (kpiInfoModal) {
       kpiInfoModal.classList.remove('hidden');
+      kpiInfoModal.style.display = 'block';
+      console.log('🔍 KPI modal should be visible now');
+    } else {
+      console.error('❌ kpiInfoModal not found!');
     }
   }
 
@@ -6311,6 +6487,9 @@ function initModals() {
   if (newProjectBtn) {
     newProjectBtn.addEventListener('click', () => {
       console.log('New project button clicked');
+      
+      // Close all modals first
+      closeAllModals();
       
       // Get the modal first
       const newProjectModal = document.getElementById('newProjectModal_old');
@@ -6340,20 +6519,29 @@ function initModals() {
       
       // Show modal
       newProjectModal.classList.remove('hidden');
+      newProjectModal.style.display = 'block';
     });
   }
   if (newSourceBtn) {
     newSourceBtn.addEventListener('click', () => {
+      closeAllModals();
       const modal = document.getElementById('newSourceModal');
       const form = document.getElementById('sourceForm') || modal?.querySelector('form');
       if (form) form.reset();
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'block';
+      }
     });
   }
   if (newAllocationBtn) {
     newAllocationBtn.addEventListener('click', () => {
+      closeAllModals();
       const modal = document.getElementById('newAllocationModal');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'block';
+      }
     });
   }
 
@@ -6363,6 +6551,7 @@ function initModals() {
       const modal = close.closest('.modal');
       if (modal) {
         modal.classList.add('hidden');
+        modal.style.display = 'none';
       }
     });
   });
@@ -6374,6 +6563,7 @@ function initModals() {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
         modal.classList.add('hidden');
+        modal.style.display = 'none';
       }
     });
   });
@@ -6494,16 +6684,43 @@ function initModals() {
         };
 
         appData.projects.push(newItem);
+        console.log('✅ New item added to appData:', newItem);
+        console.log('📊 Total projects in appData:', appData.projects.length);
+        
         if (parent_id){
           const parent = appData.projects.find(p=>p.id===parent_id);
-          if (parent){ parent.allocated = (parent.allocated||0) + budget; parent.remaining = (parent.budget||0) - (parent.allocated||0); }
+          if (parent){ 
+            parent.allocated = (parent.allocated||0) + budget; 
+            parent.remaining = (parent.budget||0) - (parent.allocated||0); 
+            console.log('📈 Parent project updated:', parent.name, 'allocated:', parent.allocated);
+          }
         }
         addAuditEvent('CREATE', newItem.type, newItem.id, `Création ${newItem.type} ${newItem.name}`, `Budget: ${formatCurrency(newItem.budget)}, Resp: ${newItem.responsible}`);
         showToast(`${newItem.type} créé(e) avec succès!`, 'success');
       }
       
-      renderProjects(); updateKPIs();
-      const modal = document.getElementById('newProjectModal_old'); if (modal) modal.classList.add('hidden');
+      console.log('🔄 Rendering projects after creation...');
+      renderProjects(); 
+      updateKPIs();
+      
+      // Update current section if we're on projects page
+      if (currentSection && currentSection.id === 'projects') {
+        console.log('📍 On projects page, calling renderSectionContent...');
+        renderSectionContent('projects');
+      } else {
+        console.log('📍 Not on projects page, forcing render...');
+        // Force refresh of projects section
+        renderProjects();
+        if (viewState && viewState.kanban) {
+          renderProjectsKanban();
+        }
+      }
+      
+      const modal = document.getElementById('newProjectModal_old'); 
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      }
       formEl.reset();
       window.__pendingParentProjectId = null;
       
@@ -6573,6 +6790,8 @@ function initModals() {
         };
         
         appData.sources.push(newSource);
+        console.log('✅ New source added to appData:', newSource);
+        console.log('📊 Total sources in appData:', appData.sources.length);
         showToast('Nouvelle source créée avec succès!', 'success');
       }
       
@@ -6593,8 +6812,9 @@ function initModals() {
       const modal = document.getElementById('newAllocationModal');
       const editingId = modal?.dataset.editingId ? parseInt(modal.dataset.editingId) : null;
       
-      const sourceId = parseInt(get('allocationSourceId')?.value || '0') || null;
-      const taskId = parseInt(get('allocationTaskSelect')?.value || '0') || null;
+      const sourceId = get('allocationSourceId')?.value || null;
+      const taskId = get('allocationTaskSelect')?.value || null;
+      console.log('🔍 Allocation form - sourceId:', sourceId, 'taskId:', taskId);
       const plannedAmount = parseFloat(get('allocationPlannedAmount')?.value || '0') || 0;
       const actualAmount = parseFloat(get('allocationActualAmount')?.value || '0') || 0;
       const plannedDate = get('allocationPlannedDate')?.value || '';
@@ -6607,10 +6827,20 @@ function initModals() {
         return;
       }
       
-      const source = appData.sources.find(s => s.id === sourceId);
-      const task = appData.projects.find(p => p.id === taskId);
+      console.log('🔍 Looking for source with ID:', sourceId, 'type:', typeof sourceId);
+      console.log('📋 Available sources:', appData.sources?.map(s => ({ id: s.id, type: typeof s.id, name: s.name })));
+      
+      const source = appData.sources.find(s => s.id == sourceId); // Use == for type coercion
+      console.log('✅ Source found:', source);
+      
+      console.log('🔍 Looking for task with ID:', taskId, 'type:', typeof taskId);
+      console.log('📋 Available tasks:', appData.projects?.filter(p => p.parent_id !== null).map(p => ({ id: p.id, type: typeof p.id, name: p.name })));
+      
+      const task = appData.projects.find(p => p.id == taskId); // Use == for type coercion
+      console.log('✅ Task found:', task);
       
       if (!source || !task) {
+        console.error('❌ Source or task not found:', { source, task, sourceId, taskId });
         showToast('Source ou tâche introuvable', 'error');
         return;
       }
@@ -6755,6 +6985,7 @@ function initModals() {
       // Fermer le modal et nettoyer
       if (modal) {
         modal.classList.add('hidden');
+        modal.style.display = 'none';
         delete modal.dataset.editingId;
         
         // Restaurer le titre
@@ -6807,7 +7038,8 @@ function initModals() {
       e.preventDefault();
       
       const taskId = document.getElementById('taskId')?.value;
-      const parentId = parseInt(document.getElementById('taskParentId')?.value) || null;
+      const parentId = document.getElementById('taskParentId')?.value || null;
+      console.log('🔍 Task creation - parentId from form:', parentId, 'type:', typeof parentId);
       const name = document.getElementById('taskName')?.value || '';
       const description = document.getElementById('taskDescription')?.value || '';
       const category = document.getElementById('taskCategory')?.value || '';
@@ -6905,6 +7137,8 @@ function initModals() {
         };
         
         appData.projects.push(newTask);
+        console.log('✅ New task added to appData:', newTask);
+        console.log('📊 Total projects in appData:', appData.projects.length);
         
         // Update parent project if exists
         if (parentId) {
@@ -6912,6 +7146,7 @@ function initModals() {
           if (parent) {
             parent.allocated = (parent.allocated || 0) + budget;
             parent.remaining = (parent.budget || 0) - (parent.allocated || 0);
+            console.log('📈 Parent project updated:', parent.name, 'allocated:', parent.allocated);
           }
         }
         
@@ -6948,6 +7183,8 @@ function initModals() {
       const modal = document.getElementById('taskModal');
       if (modal) modal.classList.add('hidden');
       taskForm.reset();
+      
+      console.log('🔄 Rendering projects after task creation...');
       renderSectionContent('projects');
       updateKPIs();
     });
@@ -7527,6 +7764,7 @@ function initSettings() {
         
         // Show modal
         modal.classList.remove('hidden');
+      modal.style.display = 'block';
       } catch (e) {
         console.error('Error opening add user modal:', e);
         showToast('Erreur lors de l\'ouverture du modal', 'error');
@@ -7535,9 +7773,27 @@ function initSettings() {
   }
 }
 
+// Function to close all modals
+function closeAllModals() {
+  const modals = document.querySelectorAll('.modal');
+  modals.forEach(modal => {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  });
+  
+  // Clear any pending parent project info
+  const existingParentInfo = document.querySelector('.parent-project-info');
+  if (existingParentInfo) {
+    existingParentInfo.remove();
+  }
+}
+
 // Global action functions
 window.editProject = function(projectId) {
   try{
+    // Close all modals first
+    closeAllModals();
+    
     const p = (appData.projects||[]).find(x=>x.id===projectId);
     if (!p) { 
       showToast('Projet non trouvé', 'error');
@@ -7562,6 +7818,7 @@ window.editProject = function(projectId) {
     
     // Show modal
     modal.classList.remove('hidden');
+    modal.style.display = 'block';
     
     // Fill form with existing data - use the correct field IDs from newProjectForm
     console.log('Populating form with project data:', p);
@@ -7640,8 +7897,17 @@ window.addTask = function(projectId) {
 
 window.allocateSource = function(sourceId) {
   try {
+    console.log('🔍 Allocating source with ID:', sourceId, 'type:', typeof sourceId);
+    console.log('📋 Available sources:', appData.sources?.map(s => ({ id: s.id, type: typeof s.id, name: s.name })));
+    
+    // Close all modals first
+    closeAllModals();
+    
     const modal = document.getElementById('newAllocationModal');
-    const src = (appData.sources||[]).find(s=>s.id===sourceId);
+    const src = (appData.sources||[]).find(s=>s.id==sourceId); // Use == for type coercion
+    console.log('✅ Source found for allocation:', src);
+    console.log('✅ Modal found:', modal);
+    
     if (modal && src) {
       // Réinitialiser le modal (sortir du mode édition)
       delete modal.dataset.editingId;
@@ -7682,6 +7948,7 @@ window.allocateSource = function(sourceId) {
       // Attacher interactions (mode strict + deltas)
       try { attachAllocationInteractions(src); } catch(e) { console.warn('attachAllocationInteractions failed', e); }
       modal.classList.remove('hidden');
+      modal.style.display = 'block';
     } else {
       showToast(`Allocation de la source ${sourceId}`, 'info');
     }
@@ -7729,9 +7996,20 @@ window.editUser = function(userId) {
 
 window.editSource = function(sourceId) {
   try {
-    const src = (appData.sources||[]).find(s=>s.id===sourceId);
+    console.log('🔍 Looking for source with ID:', sourceId, 'type:', typeof sourceId);
+    console.log('📋 Available sources:', appData.sources?.map(s => ({ id: s.id, type: typeof s.id, name: s.name })));
+    
+    // Close all modals first
+    closeAllModals();
+    
+    const src = (appData.sources||[]).find(s => {
+      console.log('🔍 Comparing:', s.id, '===', sourceId, 'result:', s.id == sourceId);
+      return s.id == sourceId; // Use == instead of === for type coercion
+    });
+    
     const modal = document.getElementById('newSourceModal');
     if (modal && src) {
+      console.log('✅ Source found:', src);
       const set = (id,val)=>{ const el=document.getElementById(id); if (el) el.value = val??''; };
       set('sourceId', src.id);
       set('sourceName', src.name);
@@ -7743,8 +8021,9 @@ window.editSource = function(sourceId) {
       set('sourceRegularity', src.regularity);
       const n = document.getElementById('sourceNotes'); if (n) n.value = src.notes||'';
       modal.classList.remove('hidden');
+      modal.style.display = 'block';
     } else {
-      showToast(`Édition de la source ${sourceId}`, 'info');
+      showToast(`Source ${sourceId} non trouvée`, 'error');
     }
   } catch(e) { console.error(e); showToast('Erreur édition source','error'); }
 };
@@ -7789,9 +8068,16 @@ window.deleteSource = function(sourceId) {
 
 window.editAllocation = function(allocationId) {
   try {
+    console.log('🔍 Looking for allocation with ID:', allocationId, 'type:', typeof allocationId);
+    console.log('📋 Available allocations:', appData.allocations?.map(a => ({ id: a.id, type: typeof a.id, source_name: a.source_name })));
+    
+    // Close all modals first
+    closeAllModals();
+    
     const allocation = (appData.allocations||[]).find(a=>a.id===allocationId);
     const modal = document.getElementById('newAllocationModal');
     if (modal && allocation) {
+      console.log('✅ Allocation found:', allocation);
       const set = (id,val)=>{ const el=document.getElementById(id); if (el) el.value = val??''; };
       
       // Récupérer la source pour mettre à jour les informations
@@ -7862,8 +8148,9 @@ window.editAllocation = function(allocationId) {
       }
       
       modal.classList.remove('hidden');
+      modal.style.display = 'block';
     } else {
-      showToast(`Édition de l'allocation ${allocationId}`, 'info');
+      showToast(`Allocation ${allocationId} non trouvée`, 'error');
     }
   } catch(e) { 
     console.error(e); 
@@ -7979,20 +8266,20 @@ function filterTasksByCurrentPeriod(tasks) {
     const endDate = new Date(currentFilters.endDate);
     
     console.log('Filtering by date range:', currentFilters.startDate, 'to', currentFilters.endDate);
+  
+  return tasks.filter(task => {
+    // Show tasks without dates
+    if (!task.start_date && !task.end_date) return true;
     
-    return tasks.filter(task => {
-      // Show tasks without dates
-      if (!task.start_date && !task.end_date) return true;
-      
       // Parse task dates
-      const taskStartDate = new Date(task.start_date || task.end_date);
-      const taskEndDate = new Date(task.end_date || task.start_date);
-      
-      // Handle invalid dates
-      if (isNaN(taskStartDate.getTime()) || isNaN(taskEndDate.getTime())) {
-        return true; // Show tasks with invalid dates
-      }
-      
+    const taskStartDate = new Date(task.start_date || task.end_date);
+    const taskEndDate = new Date(task.end_date || task.start_date);
+    
+    // Handle invalid dates
+    if (isNaN(taskStartDate.getTime()) || isNaN(taskEndDate.getTime())) {
+      return true; // Show tasks with invalid dates
+    }
+    
       // Check if task overlaps with filter period
       return (taskStartDate <= endDate && taskEndDate >= startDate);
     });
@@ -8177,11 +8464,17 @@ function updateProjectAggregatesDisplay(projectId) {
 // Task modal functions
 window.openTaskModal = function(taskData = null, parentId = null) {
   try {
+    console.log('Opening task modal for:', taskData, 'parentId:', parentId);
+    
+    // Close all modals first
+    closeAllModals();
+    
     const modal = document.getElementById('taskModal');
     const form = document.getElementById('taskForm');
     const title = document.getElementById('taskModalTitle');
     
     if (!modal || !form) {
+      console.error('Modal or form not found:', { modal, form });
       showToast('Modal de tâche non trouvé', 'error');
       return;
     }
@@ -8246,6 +8539,7 @@ window.openTaskModal = function(taskData = null, parentId = null) {
     }
     
     modal.classList.remove('hidden');
+    modal.style.display = 'block';
   } catch (e) {
     console.error('Error opening task modal:', e);
     showToast('Erreur lors de l\'ouverture du modal', 'error');
@@ -8387,6 +8681,77 @@ document.addEventListener('change', () => {
   triggerAutoSave();
 });
 
+// ===== ID GENERATION =====
+
+// Generate unique ID for new entities
+function generateId(type, parentId = null) {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  
+  if (type === 'project') {
+    return `P${timestamp}${random}`;
+  } else if (type === 'task') {
+    return `T${parentId}${timestamp}${random}`;
+  } else if (type === 'source') {
+    // Sources commencent par S
+    return `S${timestamp}${random}`;
+  } else if (type === 'allocation') {
+    // Allocations commencent par SX_AY (X = source_id, Y = numéro séquentiel)
+    const sourceId = parentId || 'S1';
+    const sourceNumber = sourceId.replace('S', '');
+    const allocationNumber = (appData.allocations.filter(a => a.source_id === sourceId).length + 1);
+    return `S${sourceNumber}_A${allocationNumber}`;
+  }
+  
+  return `${type}_${timestamp}${random}`;
+}
+
+// ===== GOOGLE SHEETS DATA LOADING =====
+
+// Load data from Google Sheets on startup
+async function loadDataFromGoogleSheets() {
+  try {
+    console.log('Loading data from Google Sheets...');
+    
+    // Configuration du Google Sheet ID
+    const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
+    
+    // Utiliser Google Apps Script pour récupérer les données
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+    
+    const response = await fetch(`${SCRIPT_URL}?action=get_data&sheet_id=${SHEET_ID}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      // Mettre à jour appData avec les données du Google Sheet
+      appData.projects = result.data.projects || [];
+      appData.sources = result.data.sources || [];
+      appData.allocations = result.data.allocations || [];
+      appData.users = result.data.users || [];
+      appData.kpis = result.data.kpis || {};
+      appData.monthly_data = result.data.monthly_data || [];
+      
+      console.log('Data loaded from Google Sheets:', result.data);
+      
+      // Re-render all sections
+      renderSectionContent(currentSection);
+      
+      showToast('✅ Données chargées depuis Google Sheets !', 'success');
+    } else {
+      console.log('No data found in Google Sheets, using local data');
+    }
+    
+  } catch (error) {
+    console.error('Error loading data from Google Sheets:', error);
+    console.log('Using local data instead');
+  }
+}
+
 // ===== GOOGLE APPS SCRIPT INTEGRATION =====
 
 // Initialize Google Apps Script integration
@@ -8406,6 +8771,9 @@ function initGoogleAppsScript() {
     downloadExcelBtn.addEventListener('click', downloadExcelFile);
     console.log('Excel download button listener attached');
   }
+  
+  // Load data from Google Sheets on startup
+  loadDataFromGoogleSheets();
 }
 
 // Save data to Google Sheets via Google Apps Script
@@ -8430,9 +8798,10 @@ async function saveToGoogleDrive() {
     };
     
     // Méthode : Mise à jour directe du Google Sheet (base de données)
-    await updateGoogleSheet(exportData);
+    const result = await updateGoogleSheet(exportData);
     
-    showToast('✅ Données mises à jour dans Google Sheets !', 'success');
+    // Afficher le résultat dans un modal
+    showGoogleDriveResult(result);
     
   } catch (error) {
     console.error('Error saving to Google Sheets:', error);
@@ -8663,32 +9032,138 @@ async function updateGoogleSheet(data) {
       timestamp: new Date().toISOString()
     };
     
-    // Envoyer les données via formulaire pour contourner CORS
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = SCRIPT_URL;
-    form.target = '_blank';
-    form.style.display = 'none';
+    // Utiliser fetch pour obtenir une réponse JSON
+    const response = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `data=${encodeURIComponent(JSON.stringify(updateData))}`
+    });
     
-    // Ajouter les données comme champ caché
-    const dataInput = document.createElement('input');
-    dataInput.type = 'hidden';
-    dataInput.name = 'data';
-    dataInput.value = JSON.stringify(updateData);
-    form.appendChild(dataInput);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
-    // Ajouter le formulaire au DOM et le soumettre
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
+    const result = await response.json();
+    console.log('Google Sheet update response:', result);
     
-    console.log('Google Sheet update request sent');
+    return result;
     
   } catch (error) {
     console.error('Error updating Google Sheet:', error);
     throw error;
   }
 }
+
+// Fonction pour afficher le résultat de la sauvegarde Google Drive
+function showGoogleDriveResult(result) {
+  // Créer le modal
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.display = 'block';
+  modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+  modal.style.position = 'fixed';
+  modal.style.top = '0';
+  modal.style.left = '0';
+  modal.style.width = '100%';
+  modal.style.height = '100%';
+  modal.style.zIndex = '10000';
+  
+  // Contenu du modal
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal-content';
+  modalContent.style.backgroundColor = 'white';
+  modalContent.style.margin = '10% auto';
+  modalContent.style.padding = '20px';
+  modalContent.style.borderRadius = '8px';
+  modalContent.style.maxWidth = '500px';
+  modalContent.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+  
+  // Icône et titre
+  const icon = result.success ? '✅' : '❌';
+  const title = result.success ? 'Sauvegarde réussie !' : 'Erreur de sauvegarde';
+  const titleColor = result.success ? '#4CAF50' : '#f44336';
+  
+  modalContent.innerHTML = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 48px; margin-bottom: 10px;">${icon}</div>
+      <h2 style="color: ${titleColor}; margin: 0;">${title}</h2>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <p><strong>Message :</strong> ${result.message || 'Aucun message'}</p>
+      <p><strong>Timestamp :</strong> ${new Date(result.timestamp).toLocaleString()}</p>
+      ${result.sheet_url ? `<p><strong>URL du Google Sheet :</strong> <a href="${result.sheet_url}" target="_blank" style="color: #007cba;">Ouvrir le Google Sheet</a></p>` : ''}
+    </div>
+    
+    <div style="text-align: center;">
+      <button onclick="closeGoogleDriveModal()" style="background: #007cba; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+        Fermer
+      </button>
+      ${result.sheet_url ? `<button onclick="window.open('${result.sheet_url}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+        Ouvrir Google Sheet
+      </button>` : ''}
+    </div>
+  `;
+  
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+  
+  // Fermer le modal en cliquant à l'extérieur
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeGoogleDriveModal();
+    }
+  });
+}
+
+// Fonction pour fermer le modal Google Drive
+function closeGoogleDriveModal() {
+  const modal = document.querySelector('.modal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+// Debug function
+window.debugApp = function() {
+  console.log('=== APP DEBUG ===');
+  console.log('Toast container:', document.getElementById('toastContainer'));
+  console.log('Current section:', currentSection);
+  console.log('App data projects:', appData.projects?.length);
+  console.log('App data sources:', appData.sources?.length);
+  console.log('App data allocations:', appData.allocations?.length);
+  
+  // Test toast
+  try {
+    showToast('Test toast - Application is working', 'info');
+  } catch (e) {
+    console.error('Toast test failed:', e);
+  }
+};
+
+// Global error handler
+window.addEventListener('error', function(e) {
+  console.error('Global error:', e.error);
+  console.error('Error details:', e.filename, e.lineno, e.colno);
+  
+  // Show error in console and try to show toast
+  try {
+    showToast(`Erreur JavaScript: ${e.error?.message || 'Erreur inconnue'}`, 'error');
+  } catch (toastError) {
+    console.error('Cannot show toast:', toastError);
+  }
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('Unhandled promise rejection:', e.reason);
+  try {
+    showToast(`Erreur Promise: ${e.reason?.message || 'Erreur inconnue'}`, 'error');
+  } catch (toastError) {
+    console.error('Cannot show toast:', toastError);
+  }
+});
 
 // Performance monitoring
 let loadStartTime = performance.now();
