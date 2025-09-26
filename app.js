@@ -8482,6 +8482,8 @@ async function saveToGoogleDrive() {
       name: `Gestionnaire_Financier_${new Date().toISOString().split('T')[0]}.json`,
       mimeType: 'application/json',
       parents: ['root'] // Save to root folder
+      // Pour sauvegarder dans un dossier spécifique, remplace 'root' par l'ID du dossier
+      // Exemple: parents: ['1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms']
     };
     
     // Upload file
