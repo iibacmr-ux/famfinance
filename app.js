@@ -8399,6 +8399,13 @@ function initGoogleAppsScript() {
     saveToGoogleDriveBtn.addEventListener('click', saveToGoogleDrive);
     console.log('Google Apps Script button listener attached');
   }
+  
+  // Setup Excel download button
+  const downloadExcelBtn = document.getElementById('downloadExcel');
+  if (downloadExcelBtn) {
+    downloadExcelBtn.addEventListener('click', downloadExcelFile);
+    console.log('Excel download button listener attached');
+  }
 }
 
 // Save data to Google Sheets via Google Apps Script
@@ -8422,35 +8429,10 @@ async function saveToGoogleDrive() {
       version: '1.0'
     };
     
-    // Méthode alternative : utiliser un formulaire caché pour contourner CORS
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
-    form.target = '_blank';
-    form.style.display = 'none';
+    // Méthode : Mise à jour directe du Google Sheet (base de données)
+    await updateGoogleSheet(exportData);
     
-    // Ajouter les données comme champ caché
-    const dataInput = document.createElement('input');
-    dataInput.type = 'hidden';
-    dataInput.name = 'data';
-    dataInput.value = JSON.stringify(exportData);
-    form.appendChild(dataInput);
-    
-    // Ajouter le formulaire au DOM et le soumettre
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
-    
-    showToast('✅ Données envoyées à Google Sheets ! Vérifiez votre Google Sheet.', 'success');
-    
-    // Ouvrir le Google Sheet après un délai
-    setTimeout(() => {
-      const openSheet = confirm('Voulez-vous ouvrir votre Google Sheet pour vérifier les données ?');
-      if (openSheet) {
-        // Ouvrir Google Sheets (l'utilisateur devra naviguer vers son sheet)
-        window.open('https://sheets.google.com', '_blank');
-      }
-    }, 2000);
+    showToast('✅ Données mises à jour dans Google Sheets !', 'success');
     
   } catch (error) {
     console.error('Error saving to Google Sheets:', error);
@@ -8460,6 +8442,251 @@ async function saveToGoogleDrive() {
     const btn = document.getElementById('saveToGoogleDrive');
     btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Sauvegarder sur Google Drive';
     btn.disabled = false;
+  }
+}
+
+// Fonction pour générer un fichier Excel multi-onglets
+function generateExcel(data) {
+  // Créer un workbook avec plusieurs onglets
+  const workbook = {
+    SheetNames: ['Projets', 'Sources', 'Allocations', 'KPIs', 'Données_Complètes'],
+    Sheets: {}
+  };
+  
+  // Onglet Projets
+  if (data.projects && data.projects.length > 0) {
+    const projectsSheet = {
+      '!ref': 'A1:Z1000',
+      A1: { v: 'ID' },
+      B1: { v: 'Nom' },
+      C1: { v: 'Description' },
+      D1: { v: 'Montant_Planifié' },
+      E1: { v: 'Montant_Réel' },
+      F1: { v: 'Date_Début' },
+      G1: { v: 'Date_Fin' },
+      H1: { v: 'Statut' },
+      I1: { v: 'Responsable' },
+      J1: { v: 'Priorité' }
+    };
+    
+    data.projects.forEach((project, index) => {
+      const row = index + 2;
+      projectsSheet[`A${row}`] = { v: project.id };
+      projectsSheet[`B${row}`] = { v: project.name };
+      projectsSheet[`C${row}`] = { v: project.description || '' };
+      projectsSheet[`D${row}`] = { v: project.planned_amount || 0 };
+      projectsSheet[`E${row}`] = { v: project.actual_amount || 0 };
+      projectsSheet[`F${row}`] = { v: project.start_date || '' };
+      projectsSheet[`G${row}`] = { v: project.end_date || '' };
+      projectsSheet[`H${row}`] = { v: project.status || 'En cours' };
+      projectsSheet[`I${row}`] = { v: project.responsible || '' };
+      projectsSheet[`J${row}`] = { v: project.priority || 'Moyenne' };
+    });
+    
+    workbook.Sheets['Projets'] = projectsSheet;
+  }
+  
+  // Onglet Sources
+  if (data.sources && data.sources.length > 0) {
+    const sourcesSheet = {
+      '!ref': 'A1:Z1000',
+      A1: { v: 'ID' },
+      B1: { v: 'Nom' },
+      C1: { v: 'Type' },
+      D1: { v: 'Montant' },
+      E1: { v: 'Date_Disponibilité' },
+      F1: { v: 'Statut' },
+      G1: { v: 'Alloué' },
+      H1: { v: 'Restant' }
+    };
+    
+    data.sources.forEach((source, index) => {
+      const row = index + 2;
+      sourcesSheet[`A${row}`] = { v: source.id };
+      sourcesSheet[`B${row}`] = { v: source.name };
+      sourcesSheet[`C${row}`] = { v: source.type || 'Financement' };
+      sourcesSheet[`D${row}`] = { v: source.amount || 0 };
+      sourcesSheet[`E${row}`] = { v: source.availability_date || '' };
+      sourcesSheet[`F${row}`] = { v: source.status || 'Disponible' };
+      sourcesSheet[`G${row}`] = { v: source.allocated || 0 };
+      sourcesSheet[`H${row}`] = { v: source.remaining || source.amount || 0 };
+    });
+    
+    workbook.Sheets['Sources'] = sourcesSheet;
+  }
+  
+  // Onglet Allocations
+  if (data.allocations && data.allocations.length > 0) {
+    const allocationsSheet = {
+      '!ref': 'A1:Z1000',
+      A1: { v: 'ID' },
+      B1: { v: 'Source_ID' },
+      C1: { v: 'Source_Nom' },
+      D1: { v: 'Tâche_ID' },
+      E1: { v: 'Tâche_Nom' },
+      F1: { v: 'Montant' },
+      G1: { v: 'Date' },
+      H1: { v: 'Responsable' },
+      I1: { v: 'Notes' }
+    };
+    
+    data.allocations.forEach((allocation, index) => {
+      const row = index + 2;
+      allocationsSheet[`A${row}`] = { v: allocation.id };
+      allocationsSheet[`B${row}`] = { v: allocation.source_id };
+      allocationsSheet[`C${row}`] = { v: allocation.source_name || 'N/A' };
+      allocationsSheet[`D${row}`] = { v: allocation.task_id };
+      allocationsSheet[`E${row}`] = { v: allocation.task_name || 'N/A' };
+      allocationsSheet[`F${row}`] = { v: allocation.amount || 0 };
+      allocationsSheet[`G${row}`] = { v: allocation.date || '' };
+      allocationsSheet[`H${row}`] = { v: allocation.responsible || '' };
+      allocationsSheet[`I${row}`] = { v: allocation.notes || '' };
+    });
+    
+    workbook.Sheets['Allocations'] = allocationsSheet;
+  }
+  
+  // Onglet KPIs
+  const kpisSheet = {
+    '!ref': 'A1:B20',
+    A1: { v: 'Métrique' },
+    B1: { v: 'Valeur' },
+    A2: { v: 'Total Projets' },
+    B2: { v: data.projects ? data.projects.length : 0 },
+    A3: { v: 'Total Sources' },
+    B3: { v: data.sources ? data.sources.length : 0 },
+    A4: { v: 'Total Allocations' },
+    B4: { v: data.allocations ? data.allocations.length : 0 },
+    A5: { v: 'Montant Total Sources' },
+    B5: { v: data.sources ? data.sources.reduce((sum, s) => sum + (s.amount || 0), 0) : 0 },
+    A6: { v: 'Montant Total Alloué' },
+    B6: { v: data.allocations ? data.allocations.reduce((sum, a) => sum + (a.amount || 0), 0) : 0 },
+    A7: { v: 'Date Export' },
+    B7: { v: data.export_date || new Date().toISOString() },
+    A8: { v: 'Version' },
+    B8: { v: data.version || '1.0' }
+  };
+  
+  workbook.Sheets['KPIs'] = kpisSheet;
+  
+  // Onglet Données Complètes (JSON divisé en plusieurs cellules)
+  const fullDataSheet = {
+    '!ref': 'A1:Z1000',
+    A1: { v: 'Export JSON - Données Complètes' },
+    A2: { v: 'Date Export' },
+    B2: { v: data.export_date || new Date().toISOString() },
+    A3: { v: 'Version' },
+    B3: { v: data.version || '1.0' },
+    A4: { v: 'Total Projets' },
+    B4: { v: data.projects ? data.projects.length : 0 },
+    A5: { v: 'Total Sources' },
+    B5: { v: data.sources ? data.sources.length : 0 },
+    A6: { v: 'Total Allocations' },
+    B6: { v: data.allocations ? data.allocations.length : 0 }
+  };
+  
+  // Diviser le JSON en plusieurs cellules pour éviter la limite de 32767 caractères
+  const jsonString = JSON.stringify(data, null, 2);
+  const chunkSize = 30000; // Limite sûre
+  let row = 8;
+  
+  for (let i = 0; i < jsonString.length; i += chunkSize) {
+    const chunk = jsonString.substring(i, i + chunkSize);
+    fullDataSheet[`A${row}`] = { v: chunk };
+    row++;
+  }
+  
+  workbook.Sheets['Données_Complètes'] = fullDataSheet;
+  
+  return workbook;
+}
+
+// Fonction pour télécharger un fichier Excel
+function downloadExcel(workbook, filename) {
+  // Convertir le workbook en format Excel
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
+// Fonction pour télécharger le fichier Excel
+function downloadExcelFile() {
+  try {
+    // Préparer les données à exporter
+    const exportData = {
+      projects: appData.projects || [],
+      sources: appData.sources || [],
+      allocations: appData.allocations || [],
+      users: appData.users || [],
+      kpis: appData.kpis || {},
+      monthly_data: appData.monthly_data || [],
+      export_date: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    // Générer le fichier Excel
+    const excelContent = generateExcel(exportData);
+    downloadExcel(excelContent, `Gestionnaire_Financier_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    showToast('✅ Fichier Excel téléchargé !', 'success');
+    
+  } catch (error) {
+    console.error('Error downloading Excel file:', error);
+    showToast(`Erreur lors du téléchargement: ${error.message}`, 'error');
+  }
+}
+
+// Fonction pour mettre à jour le Google Sheet (base de données)
+async function updateGoogleSheet(data) {
+  // Configuration du Google Sheet ID
+  const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
+  
+  // Utiliser Google Apps Script comme proxy pour éviter les problèmes d'authentification
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+  
+  try {
+    // Préparer les données pour l'envoi
+    const updateData = {
+      sheet_id: SHEET_ID,
+      action: 'update_sheet',
+      data: data,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Envoyer les données via formulaire pour contourner CORS
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = SCRIPT_URL;
+    form.target = '_blank';
+    form.style.display = 'none';
+    
+    // Ajouter les données comme champ caché
+    const dataInput = document.createElement('input');
+    dataInput.type = 'hidden';
+    dataInput.name = 'data';
+    dataInput.value = JSON.stringify(updateData);
+    form.appendChild(dataInput);
+    
+    // Ajouter le formulaire au DOM et le soumettre
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+    
+    console.log('Google Sheet update request sent');
+    
+  } catch (error) {
+    console.error('Error updating Google Sheet:', error);
+    throw error;
   }
 }
 
