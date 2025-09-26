@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Google Apps Script</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; margin: 10px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
+        .success { border-color: #4CAF50; background: #e8f5e8; }
+        .error { border-color: #f44336; background: #ffeaea; }
+    </style>
+</head>
+<body>
+    <h1>Test Google Apps Script</h1>
+    <p>Ce test vérifie si votre Google Apps Script fonctionne correctement.</p>
+    
+    <button onclick="testGet()">Test GET (Simple)</button>
+    <button onclick="testPost()">Test POST (Avec données)</button>
+    <button onclick="testWithProxy()">Test avec Proxy CORS</button>
+    
+    <div id="result"></div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+        
+        function showResult(message, isSuccess = true) {
+            const result = document.getElementById('result');
+            result.className = isSuccess ? 'success' : 'error';
+            result.innerHTML = message;
+        }
+        
+        async function testGet() {
+            try {
+                showResult('Test GET en cours...', true);
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                const result = await response.json();
+                showResult(`<h3>✅ Test GET réussi !</h3><pre>${JSON.stringify(result, null, 2)}</pre>`, true);
+            } catch (error) {
+                showResult(`<h3>❌ Test GET échoué</h3><pre>${error.toString()}</pre>`, false);
+            }
+        }
+        
+        async function testPost() {
+            try {
+                showResult('Test POST en cours...', true);
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        test: true,
+                        message: 'Test de connexion depuis localhost',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                const result = await response.json();
+                showResult(`<h3>✅ Test POST réussi !</h3><pre>${JSON.stringify(result, null, 2)}</pre>`, true);
+            } catch (error) {
+                showResult(`<h3>❌ Test POST échoué</h3><pre>${error.toString()}</pre>`, false);
+            }
+        }
+        
+        async function testWithProxy() {
+            try {
+                showResult('Test avec proxy CORS en cours...', true);
+                
+                // Utiliser un proxy CORS public
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                const response = await fetch(proxyUrl + SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        test: true,
+                        message: 'Test avec proxy CORS',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                const result = await response.json();
+                showResult(`<h3>✅ Test avec proxy réussi !</h3><pre>${JSON.stringify(result, null, 2)}</pre>`, true);
+            } catch (error) {
+                showResult(`<h3>❌ Test avec proxy échoué</h3><pre>${error.toString()}</pre>`, false);
+            }
+        }
+    </script>
+</body>
+</html>

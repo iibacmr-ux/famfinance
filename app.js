@@ -8037,8 +8037,8 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('8. Initializing settings...');
     initSettings();
     
-    console.log('8.5. Initializing Google Drive...');
-    initGoogleDrive();
+    console.log('8.5. Initializing Google Apps Script...');
+    initGoogleAppsScript();
     
     console.log('8.6. Populating responsible dropdowns...');
     populateResponsibleDropdowns();
@@ -8387,79 +8387,28 @@ document.addEventListener('change', () => {
   triggerAutoSave();
 });
 
-// ===== GOOGLE DRIVE INTEGRATION =====
+// ===== GOOGLE APPS SCRIPT INTEGRATION =====
 
-// Google Drive API configuration (loaded from config.js)
-
-let gapi = null;
-let isGoogleDriveInitialized = false;
-
-// Initialize Google Drive
-function initGoogleDrive() {
-  console.log('Initializing Google Drive...');
+// Initialize Google Apps Script integration
+function initGoogleAppsScript() {
+  console.log('Google Apps Script integration ready');
   
-  // Check if Google APIs are loaded
-  if (typeof gapi === 'undefined') {
-    console.warn('Google APIs not loaded yet, retrying...');
-    setTimeout(initGoogleDrive, 1000);
-    return;
+  // Setup button event listener
+  const saveToGoogleDriveBtn = document.getElementById('saveToGoogleDrive');
+  if (saveToGoogleDriveBtn) {
+    saveToGoogleDriveBtn.addEventListener('click', saveToGoogleDrive);
+    console.log('Google Apps Script button listener attached');
   }
-  
-  gapi = window.gapi;
-  
-  // Get configuration
-  const config = window.GOOGLE_DRIVE_CONFIG || {
-    apiKey: 'YOUR_API_KEY',
-    clientId: 'YOUR_CLIENT_ID',
-    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-    scopes: 'https://www.googleapis.com/auth/drive.file'
-  };
-  
-  // Initialize the API
-  gapi.load('client:auth2', () => {
-    gapi.client.init({
-      apiKey: config.apiKey,
-      clientId: config.clientId,
-      discoveryDocs: config.discoveryDocs,
-      scope: config.scopes,
-      cookiePolicy: 'single_host_origin'
-    }).then(() => {
-      isGoogleDriveInitialized = true;
-      console.log('Google Drive API initialized successfully');
-      
-      // Setup button event listener
-      const saveToGoogleDriveBtn = document.getElementById('saveToGoogleDrive');
-      if (saveToGoogleDriveBtn) {
-        saveToGoogleDriveBtn.addEventListener('click', saveToGoogleDrive);
-      }
-    }).catch(error => {
-      console.error('Error initializing Google Drive API:', error);
-      showToast('Erreur lors de l\'initialisation de Google Drive', 'error');
-    });
-  });
 }
 
-// Save data to Google Drive
+// Save data to Google Sheets via Google Apps Script
 async function saveToGoogleDrive() {
-  if (!isGoogleDriveInitialized) {
-    showToast('Google Drive non initialisé', 'error');
-    return;
-  }
-  
   try {
     // Show loading state
     const btn = document.getElementById('saveToGoogleDrive');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sauvegarde...';
     btn.disabled = true;
-    
-    // Authenticate user
-    const authInstance = gapi.auth2.getAuthInstance();
-    const user = authInstance.currentUser.get();
-    
-    if (!user.isSignedIn()) {
-      await authInstance.signIn();
-    }
     
     // Prepare data for export
     const exportData = {
@@ -8473,47 +8422,43 @@ async function saveToGoogleDrive() {
       version: '1.0'
     };
     
-    // Convert to JSON
-    const jsonData = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonData], { type: 'application/json' });
+    // Méthode alternative : utiliser un formulaire caché pour contourner CORS
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+    form.target = '_blank';
+    form.style.display = 'none';
     
-    // Create file metadata
-    const metadata = {
-      name: `Gestionnaire_Financier_${new Date().toISOString().split('T')[0]}.json`,
-      mimeType: 'application/json',
-      parents: ['root'] // Save to root folder
-      // Pour sauvegarder dans un dossier spécifique, remplace 'root' par l'ID du dossier
-      // Exemple: parents: ['1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms']
-    };
+    // Ajouter les données comme champ caché
+    const dataInput = document.createElement('input');
+    dataInput.type = 'hidden';
+    dataInput.name = 'data';
+    dataInput.value = JSON.stringify(exportData);
+    form.appendChild(dataInput);
     
-    // Upload file
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', blob);
+    // Ajouter le formulaire au DOM et le soumettre
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
     
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${user.getAuthResponse().access_token}`
-      },
-      body: form
-    });
+    showToast('✅ Données envoyées à Google Sheets ! Vérifiez votre Google Sheet.', 'success');
     
-    if (response.ok) {
-      const result = await response.json();
-      showToast('Données sauvegardées sur Google Drive avec succès! 🎉', 'success');
-      console.log('File saved to Google Drive:', result);
-    } else {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+    // Ouvrir le Google Sheet après un délai
+    setTimeout(() => {
+      const openSheet = confirm('Voulez-vous ouvrir votre Google Sheet pour vérifier les données ?');
+      if (openSheet) {
+        // Ouvrir Google Sheets (l'utilisateur devra naviguer vers son sheet)
+        window.open('https://sheets.google.com', '_blank');
+      }
+    }, 2000);
     
   } catch (error) {
-    console.error('Error saving to Google Drive:', error);
+    console.error('Error saving to Google Sheets:', error);
     showToast(`Erreur lors de la sauvegarde: ${error.message}`, 'error');
   } finally {
     // Restore button state
     const btn = document.getElementById('saveToGoogleDrive');
-    btn.innerHTML = originalText;
+    btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Sauvegarder sur Google Drive';
     btn.disabled = false;
   }
 }

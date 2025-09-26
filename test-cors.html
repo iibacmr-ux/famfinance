@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CORS Google Apps Script</title>
+</head>
+<body>
+    <h1>Test CORS Google Apps Script</h1>
+    <button onclick="testConnection()">Tester la connexion</button>
+    <div id="result"></div>
+
+    <script>
+        async function testConnection() {
+            const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSuvjBk1iYchW1ecQT0RKJsc7H0ZXDCbDOqef55ZPP-UOVqD6fEBgOCeNa8BcLuUCN-w/exec';
+            
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        test: true,
+                        message: 'Test de connexion'
+                    })
+                });
+                
+                const result = await response.json();
+                document.getElementById('result').innerHTML = 
+                    '<h3>Succès !</h3><pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    '<h3>Erreur :</h3><pre>' + error.toString() + '</pre>';
+            }
+        }
+    </script>
+</body>
+</html>

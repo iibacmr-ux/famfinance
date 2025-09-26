@@ -7,20 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style_updates.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Drive API -->
-    <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://accounts.google.com/gsi/client"></script>
-    <!-- Configuration Google Drive -->
-    <script>
-      // Détecter si on est en local ou sur un serveur
-      if (window.location.protocol === 'file:') {
-        // Mode fichier local - utiliser config.js
-        document.write('<script src="config.js"><\/script>');
-      } else {
-        // Mode serveur - utiliser config-local.js
-        document.write('<script src="config-local.js"><\/script>');
-      }
-    </script>
+    <!-- Google Apps Script Integration -->
+    <!-- Plus besoin de Google Drive API - utilisation de Google Apps Script -->
 </head>
 <body>
     <!-- Header avec filtres globaux -->
