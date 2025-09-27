@@ -3684,6 +3684,9 @@ function formatCurrency(amount) {
 }
 
 function formatPercentage(value) {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '0.0%';
+  }
   return `${value.toFixed(1)}%`;
 }
 
@@ -7488,6 +7491,25 @@ async function exportAppExcelXLSX(){
   append(toSheet(appData.parameters||[]), 'Parameters');
   append(toSheet(appData.monthly_data||[]), 'MonthlyData');
   append(toSheet(appData.audit_trail||[]), 'Audit');
+  
+  // ✅ AJOUT: Feuilles calculées pour référence utilisateur
+  // KPIs - Données calculées actuelles (indicatif pour l'utilisateur)
+  const kpisData = [appData.kpis || {}];
+  append(toSheet(kpisData), 'KPIs');
+  
+  // Metadata - Informations sur l'export
+  const metadataData = [{
+    export_date: new Date().toISOString(),
+    version: '1.0',
+    build: 'v2025-09-27',
+    projects_count: projectsWithAggregation.length,
+    tasks_count: tasks.length,
+    sources_count: (appData.sources||[]).length,
+    allocations_count: (appData.allocations||[]).length,
+    users_count: (appData.users||[]).length,
+    monthly_data_count: (appData.monthly_data||[]).length
+  }];
+  append(toSheet(metadataData), 'Metadata');
   const filename = 'export_app.xlsx';
   window.XLSX.writeFile(wb, filename);
 }
@@ -7503,15 +7525,22 @@ async function importAppFromWorkbook(wb){
   const parameters = sheetToJsonSafe(getWS('Parameters'));
   const monthly = sheetToJsonSafe(getWS('MonthlyData'));
   const audit = sheetToJsonSafe(getWS('Audit'));
+  const kpis = sheetToJsonSafe(getWS('KPIs'));
 
   // Reconstituer appData de manière remplaçante si feuilles présentes
-  if (projects.length || tasks.length) appData.projects = [...(projects||[]), ...(tasks||[])];
+  // CORRECTION: Séparer projets et tâches au lieu de les mélanger
+  if (projects.length) appData.projects = projects;
+  if (tasks.length) appData.tasks = tasks;
   if (sources.length) appData.sources = sources;
   if (allocations.length) appData.allocations = allocations;
   if (users.length) appData.users = users;
   if (parameters.length) appData.parameters = parameters;
   if (monthly.length) appData.monthly_data = monthly;
   if (audit.length) appData.audit_trail = audit;
+  
+  // ✅ LOGIQUE CORRECTE: Ignorer KPIs et Metadata à l'import
+  // Ces données seront recalculées automatiquement par l'application
+  // if (kpis.length) appData.kpis = kpis[0] || {}; // ❌ SUPPRIMÉ
 
   recalcAllAggregates();
   updateKPIs();
@@ -7538,9 +7567,11 @@ async function importAppFromJson(payload){
 }
 function recalcAllAggregates(){
   try{
+    // CORRECTION: Utiliser la nouvelle structure séparée projets/tâches
     const parents = (appData.projects||[]).filter(p=>p && p.parent_id==null);
     parents.forEach(p=>{
-      const tasks = (appData.projects||[]).filter(t=>t.parent_id===p.id);
+      // Chercher les tâches dans appData.tasks au lieu d'appData.projects
+      const tasks = (appData.tasks||[]).filter(t=>t.parent_id===p.id);
       const totalBudget = tasks.reduce((s,t)=>s + (Number(t.budget)||0), 0);
       const allocated = tasks.reduce((s,t)=>s + (Number(t.allocated)||0), 0);
       const completed = tasks.reduce((s,t)=>s + ((Number(t.budget)||0) * (Number(t.progress)||0)/100), 0);
@@ -8749,7 +8780,7 @@ async function testSheetStructure() {
   try {
     console.log('🔍 Testing Google Sheet structure...');
     
-    const scriptUrl = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbw8ueO1C1JYEP6BSXSloMM27UIm0VVH5j9t8x5IqzWC7MM4QtFPdQkl3t-Gw-ud-R4fRA/exec';
     
     // Show initial status
     showToast('🔍 Test en cours... Vérification de la connectivité...', 'info', 3000);
@@ -9052,7 +9083,7 @@ async function loadDataFromGoogleSheets() {
     const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
     
     // Utiliser Google Apps Script pour récupérer les données
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8ueO1C1JYEP6BSXSloMM27UIm0VVH5j9t8x5IqzWC7MM4QtFPdQkl3t-Gw-ud-R4fRA/exec';
     
     console.log('📡 Fetching data from:', `${SCRIPT_URL}?action=get_data&sheet_id=${SHEET_ID}`);
     const response = await fetch(`${SCRIPT_URL}?action=get_data&sheet_id=${SHEET_ID}`);
@@ -9242,7 +9273,7 @@ async function downloadExcelFile() {
 async function updateGoogleSheet(data) {
   // Configuration du Google Sheet ID
   const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8ueO1C1JYEP6BSXSloMM27UIm0VVH5j9t8x5IqzWC7MM4QtFPdQkl3t-Gw-ud-R4fRA/exec';
   
   const tracking = {
     startTime: new Date().toISOString(),
@@ -9526,7 +9557,7 @@ function showGoogleSheetsDiagnostic() {
       users: appData.users?.length || 0
     },
     googleSheets: {
-      scriptUrl: 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec',
+      scriptUrl: 'https://script.google.com/macros/s/AKfycbw8ueO1C1JYEP6BSXSloMM27UIm0VVH5j9t8x5IqzWC7MM4QtFPdQkl3t-Gw-ud-R4fRA/exec',
       sheetId: '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU',
       lastUpdate: localStorage.getItem('lastGoogleSheetsUpdate') || 'Jamais',
       lastError: localStorage.getItem('lastGoogleSheetsError') || 'Aucune'
