@@ -8291,34 +8291,43 @@ function filterTasksByCurrentPeriod(tasks) {
 }
 
 // Initialize application - Fixed version
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   console.log('=== Initializing Family Finance Manager ===');
   
   try {
+    // Charger les données depuis Google Sheets au démarrage
+    console.log('0. Loading data from Google Sheets...');
+    try {
+      await loadDataFromGoogleSheets();
+      console.log('✅ Data loaded from Google Sheets');
+    } catch (error) {
+      console.log('⚠️ Could not load from Google Sheets, using local data:', error.message);
+    }
+    
     // Fix migrated data structure first - DISABLED
-    console.log('0. Fixing migrated data structure... DISABLED');
+    console.log('1. Fixing migrated data structure... DISABLED');
     // fixMigratedData();
     
     // Initialize all modules with error handling
-    console.log('1. Initializing navigation...');
+    console.log('2. Initializing navigation...');
     initNavigation();
     
-    console.log('2. Initializing dark mode...');
+    console.log('3. Initializing dark mode...');
     initDarkMode(); 
     
-    console.log('3. Initializing filters...');
+    console.log('4. Initializing filters...');
     initFilters();
     
-    console.log('4. Initializing modals...');
+    console.log('5. Initializing modals...');
     initModals();
     
-    console.log('5. Initializing analyses...');
+    console.log('6. Initializing analyses...');
     initAnalyses();
     
-    console.log('6. Initializing exports...');
+    console.log('7. Initializing exports...');
     initExports();
     
-    console.log('7. Initializing imports...');
+    console.log('8. Initializing imports...');
     initImports();
     
     console.log('8. Initializing settings...');
@@ -8708,17 +8717,344 @@ function generateId(type, parentId = null) {
 
 // ===== GOOGLE SHEETS DATA LOADING =====
 
+// Test function to check data loading status
+function checkDataLoadingStatus() {
+  console.log('🔍 === DATA LOADING STATUS CHECK ===');
+  console.log('📊 Current appData counts:');
+  console.log(`  - Projets: ${appData.projects?.length || 0}`);
+  console.log(`  - Sources: ${appData.sources?.length || 0}`);
+  console.log(`  - Allocations: ${appData.allocations?.length || 0}`);
+  console.log(`  - Users: ${appData.users?.length || 0}`);
+  console.log(`  - KPIs: ${Object.keys(appData.kpis || {}).length}`);
+  console.log(`  - Monthly data: ${appData.monthly_data?.length || 0}`);
+  
+  // Check if data looks like it came from Google Sheets
+  const hasGoogleSheetsData = appData.projects?.some(p => p.id?.startsWith('P')) || 
+                             appData.sources?.some(s => s.id?.startsWith('S')) ||
+                             appData.allocations?.some(a => a.id?.includes('_A'));
+  
+  console.log(`📡 Data source: ${hasGoogleSheetsData ? 'Google Sheets' : 'Local data'}`);
+  console.log('🔍 === END STATUS CHECK ===');
+  
+  return {
+    projects: appData.projects?.length || 0,
+    sources: appData.sources?.length || 0,
+    allocations: appData.allocations?.length || 0,
+    fromGoogleSheets: hasGoogleSheetsData
+  };
+}
+
+// Function to test Google Sheet structure
+async function testSheetStructure() {
+  try {
+    console.log('🔍 Testing Google Sheet structure...');
+    
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
+    
+    // Show initial status
+    showToast('🔍 Test en cours... Vérification de la connectivité...', 'info', 3000);
+    
+    // Test basic connectivity first
+    console.log('📡 Testing basic connectivity...');
+    const basicResponse = await fetch(scriptUrl);
+    console.log('📡 Basic response status:', basicResponse.status);
+    
+    if (!basicResponse.ok) {
+      throw new Error(`HTTP ${basicResponse.status}: ${basicResponse.statusText}`);
+    }
+    
+    const basicResult = await basicResponse.json();
+    console.log('📡 Basic response:', basicResult);
+    
+    // Show connectivity success
+    showToast('✅ Connectivité OK! Chargement des données...', 'success', 2000);
+    
+    // Test data loading (this should work with current Google Apps Script)
+    console.log('📡 Testing data loading...');
+    const dataUrl = `${scriptUrl}?action=get_data&sheet_id=12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU`;
+    console.log('📡 Fetching data from:', dataUrl);
+    
+    const dataResponse = await fetch(dataUrl);
+    console.log('📡 Data response status:', dataResponse.status);
+    
+    if (!dataResponse.ok) {
+      throw new Error(`HTTP ${dataResponse.status}: ${dataResponse.statusText}`);
+    }
+    
+    const dataResult = await dataResponse.json();
+    console.log('📋 Data Result:', dataResult);
+    
+    if (dataResult.success && dataResult.data) {
+      const data = dataResult.data;
+      let message = `📋 Données Google Sheet:\n`;
+      message += `📊 Projets: ${data.projects ? data.projects.length : 0}\n`;
+      message += `📊 Sources: ${data.sources ? data.sources.length : 0}\n`;
+      message += `📊 Allocations: ${data.allocations ? data.allocations.length : 0}\n\n`;
+      
+      // Show sample data
+      if (data.projects && data.projects.length > 0) {
+        message += `📄 Exemple projet: ${data.projects[0].name || data.projects[0].nom || 'N/A'}\n`;
+      }
+      if (data.sources && data.sources.length > 0) {
+        message += `📄 Exemple source: ${data.sources[0].name || data.sources[0].nom || 'N/A'}\n`;
+      }
+      if (data.allocations && data.allocations.length > 0) {
+        message += `📄 Exemple allocation: ${data.allocations[0].id || 'N/A'}\n`;
+      }
+      
+      showToast(message, 'info', 15000);
+    } else {
+      const errorMsg = dataResult.error || 'Erreur inconnue';
+      console.error('❌ Google Apps Script error:', errorMsg);
+      showToast(`❌ Erreur Google Apps Script: ${errorMsg}`, 'error');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing sheet structure:', error);
+    const errorMsg = error.message || 'Erreur inconnue';
+    showToast(`❌ Erreur de test: ${errorMsg}`, 'error');
+  }
+}
+
+// Simple test function that shows all info in a modal
+async function simpleTest() {
+  try {
+    console.log('🧪 Running simple test...');
+    
+    // Get current data status
+    const status = checkDataLoadingStatus();
+    
+    // Test Google Sheets data loading
+    let googleSheetsData = null;
+    let googleSheetsError = null;
+    
+    try {
+      showToast('🔄 Test de chargement depuis Google Sheets...', 'info', 2000);
+      
+      const scriptUrl = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+      const dataUrl = `${scriptUrl}?action=get_data&sheet_id=12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU`;
+      
+      const response = await fetch(dataUrl);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          googleSheetsData = result.data;
+        } else {
+          googleSheetsError = result.error || 'Erreur inconnue';
+        }
+      } else {
+        googleSheetsError = `HTTP ${response.status}: ${response.statusText}`;
+      }
+    } catch (error) {
+      googleSheetsError = error.message;
+    }
+    
+    // Create test results
+    let testResults = `
+    <div style="font-family: monospace; font-size: 14px; line-height: 1.6;">
+      <h3 style="color: #2c3e50; margin-bottom: 20px;">🧪 Test Simple - Résultats</h3>
+      
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #495057; margin-top: 0;">📊 Données Actuelles (Application)</h4>
+        <p><strong>Projets:</strong> ${appData.projects ? appData.projects.length : 0}</p>
+        <p><strong>Sources:</strong> ${appData.sources ? appData.sources.length : 0}</p>
+        <p><strong>Allocations:</strong> ${appData.allocations ? appData.allocations.length : 0}</p>
+        <p><strong>Source:</strong> ${status.fromGoogleSheets ? 'Google Sheets' : 'Locale'}</p>
+      </div>
+      
+      <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #2e7d32; margin-top: 0;">📊 Données Google Sheets (Direct)</h4>
+        ${googleSheetsData ? `
+          <p><strong>Projets:</strong> ${googleSheetsData.projects ? googleSheetsData.projects.length : 0}</p>
+          <p><strong>Sources:</strong> ${googleSheetsData.sources ? googleSheetsData.sources.length : 0}</p>
+          <p><strong>Allocations:</strong> ${googleSheetsData.allocations ? googleSheetsData.allocations.length : 0}</p>
+          <p style="color: #2e7d32;"><strong>✅ Données chargées avec succès</strong></p>
+        ` : `
+          <p style="color: #d32f2f;"><strong>❌ Erreur:</strong> ${googleSheetsError || 'Impossible de charger les données'}</p>
+        `}
+      </div>
+      
+      <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #1976d2; margin-top: 0;">🔗 Test de Connectivité</h4>
+        <p><strong>URL Google Apps Script:</strong></p>
+        <p style="word-break: break-all; background: #fff; padding: 8px; border-radius: 4px; font-size: 12px;">
+          https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec
+        </p>
+        <p><strong>ID Google Sheet:</strong> 12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU</p>
+      </div>
+      
+      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #856404; margin-top: 0;">⚠️ Problèmes Potentiels</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          <li>Google Apps Script pas mis à jour</li>
+          <li>Permissions sur le Google Sheet</li>
+          <li>Problème de déploiement</li>
+          <li>Structure des données incorrecte</li>
+          <li>Mapping des colonnes incorrect</li>
+        </ul>
+      </div>
+      
+      <div style="background: #d1ecf1; padding: 15px; border-radius: 8px;">
+        <h4 style="color: #0c5460; margin-top: 0;">🔧 Actions Recommandées</h4>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li>Mettre à jour le Google Apps Script</li>
+          <li>Vérifier les permissions du Google Sheet</li>
+          <li>Redéployer l'application Google Apps Script</li>
+          <li>Tester la connectivité de base</li>
+          <li>Vérifier la structure des onglets dans Google Sheets</li>
+        </ol>
+      </div>
+    </div>
+    `;
+    
+    // Show results in a modal
+    showTestResultsModal(testResults);
+    
+  } catch (error) {
+    console.error('❌ Error in simple test:', error);
+    showToast(`❌ Erreur dans le test simple: ${error.message}`, 'error');
+  }
+}
+
+// Alternative solutions for Google Sheets integration
+function showAlternativeSolutions() {
+  const solutions = `
+    <div style="font-family: monospace; font-size: 14px; line-height: 1.6;">
+      <h3 style="color: #2c3e50; margin-bottom: 20px;">💡 Solutions Alternatives Intelligentes</h3>
+      
+      <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #2e7d32; margin-top: 0;">🔄 Solution 1: Export/Import Manuel</h4>
+        <p><strong>Comment faire :</strong></p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li>Cliquez sur "Télécharger Fichier Excel" dans l'app</li>
+          <li>Ouvrez le fichier Excel téléchargé</li>
+          <li>Copiez les données vers votre Google Sheet</li>
+          <li>Rafraîchissez l'application</li>
+        </ol>
+        <p style="color: #2e7d32;"><strong>✅ Avantage :</strong> Simple, rapide, pas de code</p>
+      </div>
+      
+      <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #1976d2; margin-top: 0;">📊 Solution 2: Utiliser Google Sheets comme Base</h4>
+        <p><strong>Comment faire :</strong></p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li>Ouvrez votre Google Sheet</li>
+          <li>Créez 3 onglets : "Projets", "Sources", "Allocations"</li>
+          <li>Copiez les données depuis l'app vers ces onglets</li>
+          <li>L'app chargera automatiquement depuis Google Sheets</li>
+        </ol>
+        <p style="color: #1976d2;"><strong>✅ Avantage :</strong> Synchronisation automatique</p>
+      </div>
+      
+      <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #856404; margin-top: 0;">🔧 Solution 3: Réparer Google Apps Script</h4>
+        <p><strong>Étapes détaillées :</strong></p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li>Allez sur <a href="https://script.google.com/" target="_blank">script.google.com</a></li>
+          <li>Ouvrez votre projet "Gestionnaire Financier"</li>
+          <li>Supprimez tout le code existant</li>
+          <li>Copiez le code du fichier <code>google-apps-script.js</code></li>
+          <li>Collez-le dans l'éditeur</li>
+          <li>Sauvegardez (Ctrl+S)</li>
+          <li>Déployez → Nouveau déploiement</li>
+        </ol>
+      </div>
+      
+      <div style="background: #f8d7da; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #721c24; margin-top: 0;">🚨 Solution 4: Mode Local Simple</h4>
+        <p><strong>Si tout échoue :</strong></p>
+        <ol style="margin: 0; padding-left: 20px;">
+          <li>Utilisez l'app en mode local</li>
+          <li>Exportez régulièrement vers Excel</li>
+          <li>Sauvegardez le fichier Excel</li>
+          <li>Importez quand nécessaire</li>
+        </ol>
+        <p style="color: #721c24;"><strong>⚠️ Inconvénient :</strong> Pas de synchronisation automatique</p>
+      </div>
+      
+      <div style="background: #d1ecf1; padding: 15px; border-radius: 8px;">
+        <h4 style="color: #0c5460; margin-top: 0;">🎯 Recommandation</h4>
+        <p><strong>Commencez par la Solution 1</strong> (Export/Import Manuel) car c'est le plus simple et le plus fiable.</p>
+        <p>Une fois que ça marche, vous pourrez essayer la Solution 2 pour la synchronisation automatique.</p>
+      </div>
+    </div>
+  `;
+  
+  showTestResultsModal(solutions);
+}
+
+// Function to show test results in a modal
+function showTestResultsModal(content) {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('testResultsModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'testResultsModal';
+    modal.className = 'modal hidden';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h3>🧪 Test Simple - Résultats</h3>
+          <button class="modal-close" aria-label="Fermer">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body" id="testResultsContent">
+          ${content}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn--primary" onclick="closeTestResultsModal()">Fermer</button>
+          <button class="btn btn--info" onclick="testSheetStructure()">Test Avancé</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  // Update content
+  const contentDiv = document.getElementById('testResultsContent');
+  if (contentDiv) {
+    contentDiv.innerHTML = content;
+  }
+  
+  // Show modal
+  modal.classList.remove('hidden');
+  modal.style.display = 'block';
+  
+  // Add close functionality
+  const closeBtn = modal.querySelector('.modal-close');
+  if (closeBtn) {
+    closeBtn.onclick = closeTestResultsModal;
+  }
+}
+
+// Function to close test results modal
+function closeTestResultsModal() {
+  const modal = document.getElementById('testResultsModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+}
+
+// Make functions globally available
+window.checkDataLoadingStatus = checkDataLoadingStatus;
+window.testSheetStructure = testSheetStructure;
+window.simpleTest = simpleTest;
+window.closeTestResultsModal = closeTestResultsModal;
+
 // Load data from Google Sheets on startup
 async function loadDataFromGoogleSheets() {
   try {
-    console.log('Loading data from Google Sheets...');
+    console.log('🔄 Loading data from Google Sheets...');
     
     // Configuration du Google Sheet ID
     const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
     
     // Utiliser Google Apps Script pour récupérer les données
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
     
+    console.log('📡 Fetching data from:', `${SCRIPT_URL}?action=get_data&sheet_id=${SHEET_ID}`);
     const response = await fetch(`${SCRIPT_URL}?action=get_data&sheet_id=${SHEET_ID}`);
     
     if (!response.ok) {
@@ -8726,9 +9062,16 @@ async function loadDataFromGoogleSheets() {
     }
     
     const result = await response.json();
+    console.log('📊 Google Sheets response:', result);
     
     if (result.success && result.data) {
+      console.log('✅ Google Sheets data received successfully');
+      
       // Mettre à jour appData avec les données du Google Sheet
+      const oldProjectsCount = appData.projects?.length || 0;
+      const oldSourcesCount = appData.sources?.length || 0;
+      const oldAllocationsCount = appData.allocations?.length || 0;
+      
       appData.projects = result.data.projects || [];
       appData.sources = result.data.sources || [];
       appData.allocations = result.data.allocations || [];
@@ -8736,14 +9079,23 @@ async function loadDataFromGoogleSheets() {
       appData.kpis = result.data.kpis || {};
       appData.monthly_data = result.data.monthly_data || [];
       
-      console.log('Data loaded from Google Sheets:', result.data);
+      console.log('📈 Data comparison:');
+      console.log(`  - Projets: ${oldProjectsCount} → ${appData.projects.length}`);
+      console.log(`  - Sources: ${oldSourcesCount} → ${appData.sources.length}`);
+      console.log(`  - Allocations: ${oldAllocationsCount} → ${appData.allocations.length}`);
       
       // Re-render all sections
+      console.log('🔄 Re-rendering sections...');
       renderSectionContent(currentSection);
       
       showToast('✅ Données chargées depuis Google Sheets !', 'success');
     } else {
-      console.log('No data found in Google Sheets, using local data');
+      console.log('⚠️ No data found in Google Sheets, using local data');
+      console.log('📊 Local data counts:', {
+        projects: appData.projects?.length || 0,
+        sources: appData.sources?.length || 0,
+        allocations: appData.allocations?.length || 0
+      });
     }
     
   } catch (error) {
@@ -8756,23 +9108,73 @@ async function loadDataFromGoogleSheets() {
 
 // Initialize Google Apps Script integration
 function initGoogleAppsScript() {
-  console.log('Google Apps Script integration ready');
+  console.log('🔧 Google Apps Script integration ready');
   
   // Setup button event listener
   const saveToGoogleDriveBtn = document.getElementById('saveToGoogleDrive');
   if (saveToGoogleDriveBtn) {
     saveToGoogleDriveBtn.addEventListener('click', saveToGoogleDrive);
-    console.log('Google Apps Script button listener attached');
+    console.log('✅ Google Apps Script button listener attached');
+  }
+  
+  // Setup diagnostic button
+  const diagnosticBtn = document.getElementById('diagnosticGoogleSheets');
+  if (diagnosticBtn) {
+    diagnosticBtn.addEventListener('click', showGoogleSheetsDiagnostic);
+    console.log('✅ Google Sheets diagnostic button listener attached');
   }
   
   // Setup Excel download button
   const downloadExcelBtn = document.getElementById('downloadExcel');
   if (downloadExcelBtn) {
     downloadExcelBtn.addEventListener('click', downloadExcelFile);
-    console.log('Excel download button listener attached');
+    console.log('✅ Excel download button listener attached');
+  }
+  
+  // Setup data status check button
+  const checkDataStatusBtn = document.getElementById('checkDataStatus');
+  if (checkDataStatusBtn) {
+    checkDataStatusBtn.addEventListener('click', () => {
+      const status = checkDataLoadingStatus();
+      showToast(`📊 Données: ${status.projects} projets, ${status.sources} sources, ${status.allocations} allocations. Source: ${status.fromGoogleSheets ? 'Google Sheets' : 'Locale'}`, 'info');
+    });
+    console.log('✅ Data status check button listener attached');
+  }
+
+  // Setup sheet structure test button
+  const testSheetBtn = document.getElementById('testSheetStructure');
+  if (testSheetBtn) {
+    testSheetBtn.addEventListener('click', async () => {
+      try {
+        await testSheetStructure();
+      } catch (error) {
+        console.error('❌ Error in testSheetStructure:', error);
+        showToast(`❌ Erreur: ${error.message || 'Erreur inconnue'}`, 'error');
+      }
+    });
+    console.log('✅ Sheet structure test button listener attached');
+  }
+
+  // Setup simple test button
+  const simpleTestBtn = document.getElementById('simpleTest');
+  if (simpleTestBtn) {
+    simpleTestBtn.addEventListener('click', () => {
+      simpleTest();
+    });
+    console.log('✅ Simple test button listener attached');
+  }
+
+  // Setup alternative solutions button
+  const alternativeSolutionsBtn = document.getElementById('alternativeSolutions');
+  if (alternativeSolutionsBtn) {
+    alternativeSolutionsBtn.addEventListener('click', () => {
+      showAlternativeSolutions();
+    });
+    console.log('✅ Alternative solutions button listener attached');
   }
   
   // Load data from Google Sheets on startup
+  console.log('🚀 Starting Google Sheets data loading...');
   loadDataFromGoogleSheets();
 }
 
@@ -8814,245 +9216,490 @@ async function saveToGoogleDrive() {
   }
 }
 
-// Fonction pour générer un fichier Excel multi-onglets
-function generateExcel(data) {
-  // Créer un workbook avec plusieurs onglets
-  const workbook = {
-    SheetNames: ['Projets', 'Sources', 'Allocations', 'KPIs', 'Données_Complètes'],
-    Sheets: {}
-  };
-  
-  // Onglet Projets
-  if (data.projects && data.projects.length > 0) {
-    const projectsSheet = {
-      '!ref': 'A1:Z1000',
-      A1: { v: 'ID' },
-      B1: { v: 'Nom' },
-      C1: { v: 'Description' },
-      D1: { v: 'Montant_Planifié' },
-      E1: { v: 'Montant_Réel' },
-      F1: { v: 'Date_Début' },
-      G1: { v: 'Date_Fin' },
-      H1: { v: 'Statut' },
-      I1: { v: 'Responsable' },
-      J1: { v: 'Priorité' }
-    };
-    
-    data.projects.forEach((project, index) => {
-      const row = index + 2;
-      projectsSheet[`A${row}`] = { v: project.id };
-      projectsSheet[`B${row}`] = { v: project.name };
-      projectsSheet[`C${row}`] = { v: project.description || '' };
-      projectsSheet[`D${row}`] = { v: project.planned_amount || 0 };
-      projectsSheet[`E${row}`] = { v: project.actual_amount || 0 };
-      projectsSheet[`F${row}`] = { v: project.start_date || '' };
-      projectsSheet[`G${row}`] = { v: project.end_date || '' };
-      projectsSheet[`H${row}`] = { v: project.status || 'En cours' };
-      projectsSheet[`I${row}`] = { v: project.responsible || '' };
-      projectsSheet[`J${row}`] = { v: project.priority || 'Moyenne' };
-    });
-    
-    workbook.Sheets['Projets'] = projectsSheet;
-  }
-  
-  // Onglet Sources
-  if (data.sources && data.sources.length > 0) {
-    const sourcesSheet = {
-      '!ref': 'A1:Z1000',
-      A1: { v: 'ID' },
-      B1: { v: 'Nom' },
-      C1: { v: 'Type' },
-      D1: { v: 'Montant' },
-      E1: { v: 'Date_Disponibilité' },
-      F1: { v: 'Statut' },
-      G1: { v: 'Alloué' },
-      H1: { v: 'Restant' }
-    };
-    
-    data.sources.forEach((source, index) => {
-      const row = index + 2;
-      sourcesSheet[`A${row}`] = { v: source.id };
-      sourcesSheet[`B${row}`] = { v: source.name };
-      sourcesSheet[`C${row}`] = { v: source.type || 'Financement' };
-      sourcesSheet[`D${row}`] = { v: source.amount || 0 };
-      sourcesSheet[`E${row}`] = { v: source.availability_date || '' };
-      sourcesSheet[`F${row}`] = { v: source.status || 'Disponible' };
-      sourcesSheet[`G${row}`] = { v: source.allocated || 0 };
-      sourcesSheet[`H${row}`] = { v: source.remaining || source.amount || 0 };
-    });
-    
-    workbook.Sheets['Sources'] = sourcesSheet;
-  }
-  
-  // Onglet Allocations
-  if (data.allocations && data.allocations.length > 0) {
-    const allocationsSheet = {
-      '!ref': 'A1:Z1000',
-      A1: { v: 'ID' },
-      B1: { v: 'Source_ID' },
-      C1: { v: 'Source_Nom' },
-      D1: { v: 'Tâche_ID' },
-      E1: { v: 'Tâche_Nom' },
-      F1: { v: 'Montant' },
-      G1: { v: 'Date' },
-      H1: { v: 'Responsable' },
-      I1: { v: 'Notes' }
-    };
-    
-    data.allocations.forEach((allocation, index) => {
-      const row = index + 2;
-      allocationsSheet[`A${row}`] = { v: allocation.id };
-      allocationsSheet[`B${row}`] = { v: allocation.source_id };
-      allocationsSheet[`C${row}`] = { v: allocation.source_name || 'N/A' };
-      allocationsSheet[`D${row}`] = { v: allocation.task_id };
-      allocationsSheet[`E${row}`] = { v: allocation.task_name || 'N/A' };
-      allocationsSheet[`F${row}`] = { v: allocation.amount || 0 };
-      allocationsSheet[`G${row}`] = { v: allocation.date || '' };
-      allocationsSheet[`H${row}`] = { v: allocation.responsible || '' };
-      allocationsSheet[`I${row}`] = { v: allocation.notes || '' };
-    });
-    
-    workbook.Sheets['Allocations'] = allocationsSheet;
-  }
-  
-  // Onglet KPIs
-  const kpisSheet = {
-    '!ref': 'A1:B20',
-    A1: { v: 'Métrique' },
-    B1: { v: 'Valeur' },
-    A2: { v: 'Total Projets' },
-    B2: { v: data.projects ? data.projects.length : 0 },
-    A3: { v: 'Total Sources' },
-    B3: { v: data.sources ? data.sources.length : 0 },
-    A4: { v: 'Total Allocations' },
-    B4: { v: data.allocations ? data.allocations.length : 0 },
-    A5: { v: 'Montant Total Sources' },
-    B5: { v: data.sources ? data.sources.reduce((sum, s) => sum + (s.amount || 0), 0) : 0 },
-    A6: { v: 'Montant Total Alloué' },
-    B6: { v: data.allocations ? data.allocations.reduce((sum, a) => sum + (a.amount || 0), 0) : 0 },
-    A7: { v: 'Date Export' },
-    B7: { v: data.export_date || new Date().toISOString() },
-    A8: { v: 'Version' },
-    B8: { v: data.version || '1.0' }
-  };
-  
-  workbook.Sheets['KPIs'] = kpisSheet;
-  
-  // Onglet Données Complètes (JSON divisé en plusieurs cellules)
-  const fullDataSheet = {
-    '!ref': 'A1:Z1000',
-    A1: { v: 'Export JSON - Données Complètes' },
-    A2: { v: 'Date Export' },
-    B2: { v: data.export_date || new Date().toISOString() },
-    A3: { v: 'Version' },
-    B3: { v: data.version || '1.0' },
-    A4: { v: 'Total Projets' },
-    B4: { v: data.projects ? data.projects.length : 0 },
-    A5: { v: 'Total Sources' },
-    B5: { v: data.sources ? data.sources.length : 0 },
-    A6: { v: 'Total Allocations' },
-    B6: { v: data.allocations ? data.allocations.length : 0 }
-  };
-  
-  // Diviser le JSON en plusieurs cellules pour éviter la limite de 32767 caractères
-  const jsonString = JSON.stringify(data, null, 2);
-  const chunkSize = 30000; // Limite sûre
-  let row = 8;
-  
-  for (let i = 0; i < jsonString.length; i += chunkSize) {
-    const chunk = jsonString.substring(i, i + chunkSize);
-    fullDataSheet[`A${row}`] = { v: chunk };
-    row++;
-  }
-  
-  workbook.Sheets['Données_Complètes'] = fullDataSheet;
-  
-  return workbook;
-}
-
-// Fonction pour télécharger un fichier Excel
-function downloadExcel(workbook, filename) {
-  // Convertir le workbook en format Excel
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  
-  const link = document.createElement('a');
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+// Fonction pour générer un fichier Excel multi-onglets avec structure séparée
+async function generateExcel(data) {
+  // Utiliser la fonction qui fonctionne déjà bien
+  await ensureXlsxLoaded();
+  return await exportAppExcelXLSX();
 }
 
 // Fonction pour télécharger le fichier Excel
-function downloadExcelFile() {
+async function downloadExcelFile() {
   try {
-    // Préparer les données à exporter
-    const exportData = {
-      projects: appData.projects || [],
-      sources: appData.sources || [],
-      allocations: appData.allocations || [],
-      users: appData.users || [],
-      kpis: appData.kpis || {},
-      monthly_data: appData.monthly_data || [],
-      export_date: new Date().toISOString(),
-      version: '1.0'
-    };
-    
-    // Générer le fichier Excel
-    const excelContent = generateExcel(exportData);
-    downloadExcel(excelContent, `Gestionnaire_Financier_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
+    showToast('📊 Génération du fichier Excel...', 'info');
+    await exportAppExcelXLSX();
     showToast('✅ Fichier Excel téléchargé !', 'success');
-    
   } catch (error) {
     console.error('Error downloading Excel file:', error);
     showToast(`Erreur lors du téléchargement: ${error.message}`, 'error');
   }
 }
 
-// Fonction pour mettre à jour le Google Sheet (base de données)
+
+
+
+// Fonction pour mettre à jour le Google Sheet (base de données) avec tracking détaillé
 async function updateGoogleSheet(data) {
   // Configuration du Google Sheet ID
   const SHEET_ID = '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec';
   
-  // Utiliser Google Apps Script comme proxy pour éviter les problèmes d'authentification
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmksGaO3Py-5frFJsDZRNTkfbyaMHvJErra_DieatKE8Ztkl6k5kThGSo7QTfcnBEY9w/exec';
+  const tracking = {
+    startTime: new Date().toISOString(),
+    steps: [],
+    errors: [],
+    warnings: [],
+    diagnostics: {}
+  };
   
   try {
-    // Préparer les données pour l'envoi
+    console.log('🔄 [TRACKING] Starting Google Sheet update...');
+    tracking.steps.push({ step: 'init', time: new Date().toISOString(), status: 'started' });
+    
+    // Step 1: Validate input data
+    console.log('📊 [TRACKING] Step 1: Validating input data...');
+    const dataValidation = {
+      projects: data.projects?.length || 0,
+      tasks: data.tasks?.length || 0,
+      sources: data.sources?.length || 0,
+      allocations: data.allocations?.length || 0,
+      hasProjects: !!(data.projects && data.projects.length > 0),
+      hasSources: !!(data.sources && data.sources.length > 0),
+      hasAllocations: !!(data.allocations && data.allocations.length > 0)
+    };
+    
+    console.log('📊 [TRACKING] Data validation:', dataValidation);
+    tracking.steps.push({ 
+      step: 'data_validation', 
+      time: new Date().toISOString(), 
+      status: 'completed',
+      data: dataValidation
+    });
+    
+    // Step 2: Separate projects and tasks
+    console.log('📋 [TRACKING] Step 2: Separating projects and tasks...');
+    const {projects, tasks} = splitProjectsAndTasks(data.projects || []);
+    
+    const separationResult = {
+      originalProjects: data.projects?.length || 0,
+      separatedProjects: projects.length,
+      separatedTasks: tasks.length,
+      separationSuccess: projects.length + tasks.length === (data.projects?.length || 0)
+    };
+    
+    console.log('📋 [TRACKING] Separation result:', separationResult);
+    tracking.steps.push({ 
+      step: 'separation', 
+      time: new Date().toISOString(), 
+      status: separationResult.separationSuccess ? 'success' : 'warning',
+      data: separationResult
+    });
+    
+    if (!separationResult.separationSuccess) {
+      tracking.warnings.push('Project/task separation may have issues');
+    }
+    
+    // Step 3: Structure data for new format
+    console.log('🏗️ [TRACKING] Step 3: Structuring data for new format...');
+    const structuredData = {
+      projects: projects,
+      tasks: tasks,
+      sources: data.sources || [],
+      allocations: data.allocations || [],
+      users: data.users || [],
+      kpis: data.kpis || {},
+      monthly_data: data.monthly_data || [],
+      export_date: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    const structureValidation = {
+      totalSize: JSON.stringify(structuredData).length,
+      projectsCount: structuredData.projects.length,
+      tasksCount: structuredData.tasks.length,
+      sourcesCount: structuredData.sources.length,
+      allocationsCount: structuredData.allocations.length,
+      isLargeData: JSON.stringify(structuredData).length > 100000
+    };
+    
+    console.log('🏗️ [TRACKING] Structure validation:', structureValidation);
+    tracking.steps.push({ 
+      step: 'structuring', 
+      time: new Date().toISOString(), 
+      status: 'completed',
+      data: structureValidation
+    });
+    
+    if (structureValidation.isLargeData) {
+      tracking.warnings.push('Large data size may cause issues');
+    }
+    
+    // Step 4: Prepare request data
+    console.log('📦 [TRACKING] Step 4: Preparing request data...');
     const updateData = {
       sheet_id: SHEET_ID,
       action: 'update_sheet',
-      data: data,
+      data: structuredData,
       timestamp: new Date().toISOString()
     };
     
-    // Utiliser fetch pour obtenir une réponse JSON
+    const requestValidation = {
+      url: SCRIPT_URL,
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      dataSize: JSON.stringify(updateData).length,
+      encodedSize: encodeURIComponent(JSON.stringify(updateData)).length,
+      hasSheetId: !!updateData.sheet_id,
+      hasAction: !!updateData.action,
+      hasData: !!updateData.data
+    };
+    
+    console.log('📦 [TRACKING] Request validation:', requestValidation);
+    tracking.steps.push({ 
+      step: 'request_preparation', 
+      time: new Date().toISOString(), 
+      status: 'completed',
+      data: requestValidation
+    });
+    
+    // Step 5: Send request to Google Apps Script (Simple Request - No CORS Preflight)
+    console.log('🚀 [TRACKING] Step 5: Sending request to Google Apps Script...');
+    console.log('🔗 [TRACKING] URL:', SCRIPT_URL);
+    console.log('📏 [TRACKING] Request size:', requestValidation.encodedSize, 'characters');
+    
+    const requestStartTime = Date.now();
+    
+    // SOLUTION: Simple Request (pas de headers manuels = pas de preflight CORS)
+    const body = new URLSearchParams();
+    body.set('action', 'update_sheet');
+    body.set('sheet_id', SHEET_ID);
+    // ⚠️ CORRECTION: Envoyer directement structuredData, pas updateData
+    body.set('data', JSON.stringify(structuredData));
+    
     const response = await fetch(SCRIPT_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `data=${encodeURIComponent(JSON.stringify(updateData))}`
+      // ❗️ PAS de headers manuels = requête "simple" = pas de preflight CORS
+      body
+    });
+    const requestEndTime = Date.now();
+    const requestDuration = requestEndTime - requestStartTime;
+    
+    const responseValidation = {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      duration: requestDuration,
+      headers: Object.fromEntries(response.headers.entries())
+    };
+    
+    console.log('📡 [TRACKING] Response validation:', responseValidation);
+    tracking.steps.push({ 
+      step: 'request_sent', 
+      time: new Date().toISOString(), 
+      status: response.ok ? 'success' : 'error',
+      data: responseValidation
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorMsg = `HTTP error! status: ${response.status} - ${response.statusText}`;
+      tracking.errors.push(errorMsg);
+      throw new Error(errorMsg);
     }
     
-    const result = await response.json();
-    console.log('Google Sheet update response:', result);
+    // Step 6: Parse response
+    console.log('📄 [TRACKING] Step 6: Parsing response...');
+    const responseText = await response.text();
+    console.log('📄 [TRACKING] Raw response text (first 500 chars):', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
     
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log('✅ [TRACKING] Response parsed successfully');
+    } catch (parseError) {
+      const parseErrorMsg = `Failed to parse response as JSON: ${parseError.message}`;
+      console.error('❌ [TRACKING] Parse error:', parseErrorMsg);
+      console.error('📄 [TRACKING] Raw response:', responseText);
+      tracking.errors.push(parseErrorMsg);
+      tracking.diagnostics.rawResponse = responseText;
+      tracking.diagnostics.parseError = parseError.message;
+      throw new Error(parseErrorMsg);
+    }
+    
+    const parseValidation = {
+      success: result.success,
+      hasMessage: !!result.message,
+      hasTimestamp: !!result.timestamp,
+      hasSheetUrl: !!result.sheet_url,
+      hasError: !!result.error,
+      resultKeys: Object.keys(result)
+    };
+    
+    console.log('📄 [TRACKING] Parse validation:', parseValidation);
+    tracking.steps.push({ 
+      step: 'response_parsing', 
+      time: new Date().toISOString(), 
+      status: parseValidation.success ? 'success' : 'error',
+      data: parseValidation
+    });
+    
+    // Step 7: Final validation
+    console.log('✅ [TRACKING] Step 7: Final validation...');
+    tracking.endTime = new Date().toISOString();
+    tracking.totalDuration = Date.now() - new Date(tracking.startTime).getTime();
+    tracking.finalStatus = result.success ? 'success' : 'error';
+    
+    console.log('🎯 [TRACKING] Final tracking summary:', {
+      totalSteps: tracking.steps.length,
+      errors: tracking.errors.length,
+      warnings: tracking.warnings.length,
+      duration: tracking.totalDuration + 'ms',
+      finalStatus: tracking.finalStatus
+    });
+    
+    // Add tracking info to result
+    result.tracking = tracking;
+    
+    // Save tracking info to localStorage for diagnostic
+    localStorage.setItem('lastGoogleSheetsUpdate', new Date().toISOString());
+    localStorage.setItem('lastGoogleSheetsTracking', JSON.stringify(tracking));
+    
+    console.log('Google Sheet update response:', result);
     return result;
     
   } catch (error) {
-    console.error('Error updating Google Sheet:', error);
+    console.error('❌ [TRACKING] Error in updateGoogleSheet:', error);
+    tracking.errors.push(error.message);
+    tracking.endTime = new Date().toISOString();
+    tracking.totalDuration = Date.now() - new Date(tracking.startTime).getTime();
+    tracking.finalStatus = 'error';
+    
+    console.log('🚨 [TRACKING] Error tracking summary:', {
+      totalSteps: tracking.steps.length,
+      errors: tracking.errors,
+      warnings: tracking.warnings,
+      duration: tracking.totalDuration + 'ms',
+      finalStatus: tracking.finalStatus
+    });
+    
+    // Add tracking to error for debugging
+    error.tracking = tracking;
+    
+    // Save error info to localStorage for diagnostic
+    localStorage.setItem('lastGoogleSheetsError', error.message);
+    localStorage.setItem('lastGoogleSheetsErrorTracking', JSON.stringify(tracking));
+    
     throw error;
+  }
+}
+
+// Fonction de diagnostic Google Sheets
+function showGoogleSheetsDiagnostic() {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.display = 'block';
+  modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+  modal.style.position = 'fixed';
+  modal.style.top = '0';
+  modal.style.left = '0';
+  modal.style.width = '100%';
+  modal.style.height = '100%';
+  modal.style.zIndex = '10000';
+  
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal-content';
+  modalContent.style.backgroundColor = 'white';
+  modalContent.style.margin = '5% auto';
+  modalContent.style.padding = '20px';
+  modalContent.style.borderRadius = '8px';
+  modalContent.style.maxWidth = '90%';
+  modalContent.style.maxHeight = '90%';
+  modalContent.style.overflow = 'auto';
+  modalContent.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+  
+  // Collect diagnostic information
+  const diagnostic = {
+    timestamp: new Date().toISOString(),
+    appData: {
+      projects: appData.projects?.length || 0,
+      sources: appData.sources?.length || 0,
+      allocations: appData.allocations?.length || 0,
+      users: appData.users?.length || 0
+    },
+    googleSheets: {
+      scriptUrl: 'https://script.google.com/macros/s/AKfycbyZxwqdU7OGsLRw16GWY7E3RfEqjq6FwwhGzv7ja8CFrupoEyQKvweTWBx5ewlEk4hgWg/exec',
+      sheetId: '12O9RqyfA4jbH_cqspCOSihc_FUoMENK8R0OTbJbq-vU',
+      lastUpdate: localStorage.getItem('lastGoogleSheetsUpdate') || 'Jamais',
+      lastError: localStorage.getItem('lastGoogleSheetsError') || 'Aucune'
+    },
+    network: {
+      online: navigator.onLine,
+      userAgent: navigator.userAgent.substring(0, 100) + '...',
+      protocol: window.location.protocol,
+      host: window.location.host
+    }
+  };
+  
+  modalContent.innerHTML = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 48px; margin-bottom: 10px;">🔍</div>
+      <h2 style="color: #007cba; margin: 0;">Diagnostic Google Sheets</h2>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <h3>📊 Données de l'application</h3>
+      <ul>
+        <li><strong>Projets:</strong> ${diagnostic.appData.projects}</li>
+        <li><strong>Sources:</strong> ${diagnostic.appData.sources}</li>
+        <li><strong>Allocations:</strong> ${diagnostic.appData.allocations}</li>
+        <li><strong>Utilisateurs:</strong> ${diagnostic.appData.users}</li>
+      </ul>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <h3>🔗 Configuration Google Sheets</h3>
+      <ul>
+        <li><strong>Script URL:</strong> ${diagnostic.googleSheets.scriptUrl}</li>
+        <li><strong>Sheet ID:</strong> ${diagnostic.googleSheets.sheetId}</li>
+        <li><strong>Dernière mise à jour:</strong> ${diagnostic.googleSheets.lastUpdate}</li>
+        <li><strong>Dernière erreur:</strong> ${diagnostic.googleSheets.lastError}</li>
+      </ul>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <h3>🌐 Réseau et Environnement</h3>
+      <ul>
+        <li><strong>En ligne:</strong> ${diagnostic.network.online ? '✅ Oui' : '❌ Non'}</li>
+        <li><strong>Protocole:</strong> ${diagnostic.network.protocol}</li>
+        <li><strong>Hôte:</strong> ${diagnostic.network.host}</li>
+        <li><strong>Navigateur:</strong> ${diagnostic.network.userAgent}</li>
+      </ul>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <h3>🧪 Tests de Connectivité</h3>
+      <button id="testConnectivity" style="background: #007cba; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+        Tester la Connectivité
+      </button>
+      <button id="testDataStructure" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+        Tester la Structure
+      </button>
+      <button id="testFullDiagnostic" style="background: #ff9800; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+        Diagnostic Complet
+      </button>
+      <div id="testResults" style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; display: none;">
+        <div id="testOutput"></div>
+      </div>
+    </div>
+    
+    <div style="text-align: center;">
+      <button onclick="closeDiagnosticModal()" style="background: #007cba; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+        Fermer
+      </button>
+    </div>
+  `;
+  
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+  
+  // Add event listeners for test buttons
+  document.getElementById('testConnectivity').addEventListener('click', async function() {
+    const testResults = document.getElementById('testResults');
+    const testOutput = document.getElementById('testOutput');
+    testResults.style.display = 'block';
+    testOutput.innerHTML = '🔄 Test de connectivité en cours...';
+    
+    try {
+      const response = await fetch(diagnostic.googleSheets.scriptUrl + '?action=test');
+      const result = await response.text();
+      console.log('🔍 [DIAGNOSTIC] Raw response:', result);
+      testOutput.innerHTML = `✅ Connectivité OK<br>Réponse: ${result.substring(0, 200)}...`;
+    } catch (error) {
+      console.error('🔍 [DIAGNOSTIC] Connectivity error:', error);
+      testOutput.innerHTML = `❌ Erreur de connectivité: ${error.message}`;
+    }
+  });
+  
+  document.getElementById('testDataStructure').addEventListener('click', async function() {
+    const testResults = document.getElementById('testResults');
+    const testOutput = document.getElementById('testOutput');
+    testResults.style.display = 'block';
+    testOutput.innerHTML = '🔄 Test de structure en cours...';
+    
+    try {
+      const response = await fetch(diagnostic.googleSheets.scriptUrl + '?action=test_sheet&sheet_id=' + diagnostic.googleSheets.sheetId);
+      const result = await response.json();
+      testOutput.innerHTML = `✅ Structure OK<br>Détails: ${JSON.stringify(result, null, 2)}`;
+    } catch (error) {
+      testOutput.innerHTML = `❌ Erreur de structure: ${error.message}`;
+    }
+  });
+  
+  document.getElementById('testFullDiagnostic').addEventListener('click', async function() {
+    const testResults = document.getElementById('testResults');
+    const testOutput = document.getElementById('testOutput');
+    testResults.style.display = 'block';
+    testOutput.innerHTML = '🔄 Diagnostic complet en cours...';
+    
+    let diagnosticResults = [];
+    
+    // Test 1: Basic connectivity
+    try {
+      const response1 = await fetch(diagnostic.googleSheets.scriptUrl);
+      const result1 = await response1.text();
+      diagnosticResults.push(`✅ Test 1 - Connectivité: ${result1.substring(0, 100)}...`);
+    } catch (error) {
+      diagnosticResults.push(`❌ Test 1 - Connectivité: ${error.message}`);
+    }
+    
+    // Test 2: GET with action
+    try {
+      const response2 = await fetch(diagnostic.googleSheets.scriptUrl + '?action=get_data&sheet_id=' + diagnostic.googleSheets.sheetId);
+      const result2 = await response2.text();
+      diagnosticResults.push(`✅ Test 2 - GET Data: ${result2.substring(0, 100)}...`);
+    } catch (error) {
+      diagnosticResults.push(`❌ Test 2 - GET Data: ${error.message}`);
+    }
+    
+    // Test 3: POST simulation
+    try {
+      const testData = {
+        sheet_id: diagnostic.googleSheets.sheetId,
+        action: 'update_sheet',
+        data: { test: true },
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('🔍 [DIAGNOSTIC] Test data:', testData);
+      console.log('🔍 [DIAGNOSTIC] Encoded data:', encodeURIComponent(JSON.stringify(testData)));
+      
+      const response3 = await fetch(diagnostic.googleSheets.scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(JSON.stringify(testData))}`
+      });
+      
+      const result3 = await response3.text();
+      console.log('🔍 [DIAGNOSTIC] Raw POST response:', result3);
+      diagnosticResults.push(`✅ Test 3 - POST: ${result3.substring(0, 100)}...`);
+    } catch (error) {
+      console.error('🔍 [DIAGNOSTIC] POST error:', error);
+      diagnosticResults.push(`❌ Test 3 - POST: ${error.message}`);
+    }
+    
+    testOutput.innerHTML = diagnosticResults.join('<br>');
+  });
+  
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeDiagnosticModal();
+    }
+  });
+}
+
+function closeDiagnosticModal() {
+  const modal = document.querySelector('.modal');
+  if (modal) {
+    modal.remove();
   }
 }
 
@@ -9126,23 +9773,6 @@ function closeGoogleDriveModal() {
   }
 }
 
-// Debug function
-window.debugApp = function() {
-  console.log('=== APP DEBUG ===');
-  console.log('Toast container:', document.getElementById('toastContainer'));
-  console.log('Current section:', currentSection);
-  console.log('App data projects:', appData.projects?.length);
-  console.log('App data sources:', appData.sources?.length);
-  console.log('App data allocations:', appData.allocations?.length);
-  
-  // Test toast
-  try {
-    showToast('Test toast - Application is working', 'info');
-  } catch (e) {
-    console.error('Toast test failed:', e);
-  }
-};
-
 // Global error handler
 window.addEventListener('error', function(e) {
   console.error('Global error:', e.error);
@@ -9150,7 +9780,7 @@ window.addEventListener('error', function(e) {
   
   // Show error in console and try to show toast
   try {
-    showToast(`Erreur JavaScript: ${e.error?.message || 'Erreur inconnue'}`, 'error');
+    showToast(`Erreur: ${e.error?.message || 'Erreur inconnue'}`, 'error');
   } catch (toastError) {
     console.error('Cannot show toast:', toastError);
   }
@@ -9165,15 +9795,24 @@ window.addEventListener('unhandledrejection', function(e) {
   }
 });
 
-// Performance monitoring
-let loadStartTime = performance.now();
-window.addEventListener('load', () => {
-  const loadTime = performance.now() - loadStartTime;
-  console.log(`Application loaded in ${loadTime.toFixed(2)}ms`);
+// Global error handler
+window.addEventListener('error', function(e) {
+  console.error('Global error:', e.error);
+  console.error('Error details:', e.filename, e.lineno, e.colno);
   
-  if (loadTime < 2000) {
-    console.log('✅ Performance objective met: < 2s loading time');
-  } else {
-    console.warn('⚠️ Performance objective not met: > 2s loading time');
+  // Show error in console and try to show toast
+  try {
+    showToast(`Erreur: ${e.error?.message || 'Erreur inconnue'}`, 'error');
+  } catch (toastError) {
+    console.error('Cannot show toast:', toastError);
+  }
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('Unhandled promise rejection:', e.reason);
+  try {
+    showToast(`Erreur Promise: ${e.reason?.message || 'Erreur inconnue'}`, 'error');
+  } catch (toastError) {
+    console.error('Cannot show toast:', toastError);
   }
 });
